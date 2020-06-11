@@ -299,18 +299,21 @@ class RestConnection(object):
                 self.hostname = serverInfo.hostname
             if hasattr(serverInfo, 'services'):
                 self.services = serverInfo.services
+        self.http_protocol = "http"
         self.input = TestInputSingleton.input
         if self.input is not None:
             """ from watson, services param order and format:
                 new_services=fts-kv-index-n1ql """
             self.services_node_init = self.input.param("new_services", None)
             self.debug_logs = self.input.param("debug-logs", False)
-        self.baseUrl = "http://{0}:{1}/".format(self.ip, self.port)
-        self.fts_baseUrl = "http://{0}:{1}/".format(self.ip, self.fts_port)
-        self.index_baseUrl = "http://{0}:{1}/".format(self.ip, self.index_port)
-        self.query_baseUrl = "http://{0}:{1}/".format(self.ip, self.query_port)
-        self.capiBaseUrl = "http://{0}:{1}/".format(self.ip, 8092)
-        self.eventing_baseUrl = "http://{0}:{1}/".format(self.ip, self.eventing_port)
+            self.http_protocol = self.input.param("http_protocol", "http")
+        self.baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.port)
+        self.fts_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.fts_port)
+        self.index_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.index_port)
+        self.query_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.query_port)
+        self.capiBaseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, 8092)
+        self.eventing_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip,
+                                                     self.eventing_port)
         if self.hostname:
             self.baseUrl = "http://{0}:{1}/".format(self.hostname, self.port)
             self.capiBaseUrl = "http://{0}:{1}/".format(self.hostname, 8092)
@@ -349,21 +352,23 @@ class RestConnection(object):
                 break
         # determine the real couchApiBase for cluster_run
         # couchApiBase appeared in version 2.*
-        if not http_res or http_res["version"][0:2] == "1.":
-            self.capiBaseUrl = self.baseUrl + "/couchBase"
-        else:
-            for iteration in range(5):
-                if "couchApiBase" not in list(http_res.keys()):
-                    if self.is_cluster_mixed():
-                        self.capiBaseUrl = self.baseUrl + "/couchBase"
+        try:
+            if not http_res or http_res["version"][0:2] == "1.":
+                self.capiBaseUrl = self.baseUrl + "/couchBase"
+            else:
+                for iteration in range(5):
+                    if "couchApiBase" not in list(http_res.keys()):
+                        if self.is_cluster_mixed():
+                            self.capiBaseUrl = self.baseUrl + "/couchBase"
+                            return
+                        time.sleep(0.2)
+                        http_res, success = self.init_http_request(self.baseUrl + 'nodes/self')
+                    else:
+                        self.capiBaseUrl = http_res["couchApiBase"]
                         return
-                    time.sleep(0.2)
-                    http_res, success = self.init_http_request(self.baseUrl + 'nodes/self')
-                else:
-                    self.capiBaseUrl = http_res["couchApiBase"]
-                    return
-            raise ServerUnavailableException("couchApiBase doesn't exist in nodes/self: %s " % http_res)
-
+                raise ServerUnavailableException("couchApiBase doesn't exist in nodes/self: %s " % http_res)
+        except:
+            log.warning("server might not be running?")
     def sasl_streaming_rq(self, bucket, timeout=120):
         api = self.baseUrl + 'pools/default/bucketsStreaming/{0}'.format(bucket)
         if isinstance(bucket, Bucket):
@@ -911,9 +916,13 @@ class RestConnection(object):
                         log.info("--->Start calling httplib2.Http({}).request({},{},{},{})".format(timeout,api,headers,method,params))
                 except AttributeError:
                     pass
+                log.info("api:{}".format(api))
+                ssl_no_verify=TestInputSingleton.input.param("disable_ssl_certificate_validation",
+                                                          True)
+                response, content = httplib2.Http(timeout=timeout,
+                                                  disable_ssl_certificate_validation=ssl_no_verify
+                                                  ).request(api, method, params, headers)
 
-                response, content = httplib2.Http(timeout=timeout).request(api, method,
-                                                                           params, headers)
 
                 try:
                     if TestInputSingleton.input.param("debug.api.calls", False):
@@ -4964,18 +4973,6 @@ class RestConnection(object):
     def get_eventing_rebalance_status(self):
         authorization = self.get_authorization(self.username, self.password)
         url = "getAggRebalanceStatus"
-        api = self.eventing_baseUrl + url
-        headers = {'Content-type': 'application/json', 'Authorization': 'Basic %s' % authorization}
-        status, content, header = self._http_request(api, 'GET', headers=headers)
-        if status:
-            return content
-
-    '''
-              Get application logs
-    '''
-    def get_app_logs(self,handler_name):
-        authorization = base64.encodestring('%s:%s' % (self.username, self.password))
-        url = "getAppLog?aggregate=true&name="+handler_name
         api = self.eventing_baseUrl + url
         headers = {'Content-type': 'application/json', 'Authorization': 'Basic %s' % authorization}
         status, content, header = self._http_request(api, 'GET', headers=headers)

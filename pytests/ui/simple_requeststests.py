@@ -8,15 +8,20 @@ import re
 class SimpleRequests(BaseTestCase):
     def setUp(self):
         super(SimpleRequests, self).setUp()
-        shell = RemoteMachineShellConnection(self.master)
-        type = shell.extract_remote_info().distribution_type
-        shell.disconnect()
-        self.is_linux = False
-        if type.lower() == 'linux':
+        if not self.skip_host_login:
+            shell = RemoteMachineShellConnection(self.master)
+            type = shell.extract_remote_info().distribution_type
+            shell.disconnect()
+            self.is_linux = False
+            if type.lower() == 'linux':
+                self.is_linux = True
+        else:
+            self.log.info("-->Done SimpleRequests setup...")
             self.is_linux = True
 
     def test_simple_ui_request(self):
         rest = RestConnection(self.master)
+        self.log.info("-->Testing APIs...")
         passed = True
         for api in ["", "versions", "pools", "pools/default", "pools/nodes", "pools/default/buckets",
                     "pools/default/buckets/@query/stats", "pools/default/nodeServices",

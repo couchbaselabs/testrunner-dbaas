@@ -78,12 +78,17 @@ class BaseTestCase(unittest.TestCase):
         self.pre_warmup_stats = {}
         self.cleanup = False
         self.nonroot = False
-        shell = RemoteMachineShellConnection(self.master)
-        self.os_info = shell.extract_remote_info().type.lower()
-        if self.os_info != 'windows':
-            if self.master.ssh_username != "root":
-                self.nonroot = True
-        shell.disconnect()
+        self.skip_host_login = self.input.param("skip_host_login", False)
+        if not self.skip_host_login:
+            shell = RemoteMachineShellConnection(self.master,exit_on_failure=False)
+            self.os_info = shell.extract_remote_info().type.lower()
+            if self.os_info != 'windows':
+                if self.master.ssh_username != "root":
+                    self.nonroot = True
+            shell.disconnect()
+        else:
+            self.log.info("-->Skipping host login...")
+
         """ some tests need to bypass checking cb server at set up
             to run installation """
         self.skip_init_check_cbserver = \
@@ -106,6 +111,7 @@ class BaseTestCase(unittest.TestCase):
         if not self.cbas_node and len(self.cbas_servers)>=1:
             self.cbas_node = self.cbas_servers[0]
 
+        self.log.info("--> Getting more input parameters...")
         try:
             self.skip_setup_cleanup = self.input.param("skip_setup_cleanup", False)
             self.vbuckets = self.input.param("vbuckets", 1024)
@@ -207,10 +213,11 @@ class BaseTestCase(unittest.TestCase):
             self.enable_secrets = self.input.param("enable_secrets", False)
             self.secret_password = self.input.param("secret_password", 'p@ssw0rd')
 
-
+            self.log.info("--> Check for skip_setup_cleanup...")
             if self.skip_setup_cleanup:
                 self.buckets = RestConnection(self.master).get_buckets()
                 return
+            self.log.info("--> Check for skip_init_check_cbserver...")
             if not self.skip_init_check_cbserver:
                 self.cb_version = None
                 if RestHelper(RestConnection(self.master)).is_ns_server_running():
@@ -416,8 +423,9 @@ class BaseTestCase(unittest.TestCase):
                 status, content, header = self._log_start(self)
                 if not status:
                     self.sleep(10)
-            self.print_cluster_stats()
-
+            self.log.info("-->printing cluster stats...")
+            if not self.skip_host_login:
+                self.print_cluster_stats()
             self.java_sdk_client = self.input.param("java_sdk_client", False)
             if self.java_sdk_client:
                 self.log.info("Building docker image with java sdk client")
