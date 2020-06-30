@@ -249,6 +249,7 @@ class RestConnection(object):
         # serverInfo can be a json object/dictionary
         if isinstance(serverInfo, dict):
             self.ip = serverInfo["ip"]
+            log.info("-->self.ip={}".format(self.ip))
             self.username = serverInfo["username"]
             self.password = serverInfo["password"]
             self.port = serverInfo["port"]
@@ -307,6 +308,7 @@ class RestConnection(object):
             self.services_node_init = self.input.param("new_services", None)
             self.debug_logs = self.input.param("debug-logs", False)
             self.http_protocol = self.input.param("http_protocol", "http")
+            self.servers_map = self.input.param("servers_map")
         self.baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.port)
         self.fts_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.fts_port)
         self.index_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.index_port)
@@ -916,6 +918,17 @@ class RestConnection(object):
                         log.info("--->Start calling httplib2.Http({}).request({},{},{},{})".format(timeout,api,headers,method,params))
                 except AttributeError:
                     pass
+                if self.servers_map:
+                    log.info("servers_map={}".format(self.servers_map))
+                    servers_ip_host = self.servers_map.split(",")
+                    for server_ip_host in servers_ip_host:
+                        ip_host = server_ip_host.split(":")
+                        mapped_ip = ip_host[0]
+                        mapped_host = ip_host[1]
+                        if mapped_ip in api:
+                            log.info("--> replacing ip with hostname ")
+                            api = api.replace(mapped_ip, mapped_host)
+
                 log.info("api:{}".format(api))
                 ssl_no_verify=TestInputSingleton.input.param("disable_ssl_certificate_validation",
                                                           True)

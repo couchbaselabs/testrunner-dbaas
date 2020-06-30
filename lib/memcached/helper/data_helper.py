@@ -843,6 +843,19 @@ class VBucketAwareMemcached(object):
             nodes = rest.get_nodes()
             server = TestInputServer()
             server.ip = serverIp
+            self.log.info("add_memcached: server.ip={}".format(serverIp))
+            servers_map = TestInputSingleton.input.param("servers_map");
+            if servers_map:
+                log.info("servers_map={}".format(servers_map))
+                servers_ip_host = servers_map.split(",")
+                for server_ip_host in servers_ip_host:
+                    ip_host = server_ip_host.split(":")
+                    mapped_ip = ip_host[0]
+                    mapped_host = ip_host[1]
+                    if mapped_ip in server.ip:
+                        log.info("--> replacing ip with hostname ")
+                        server.ip = mapped_host
+
             if TestInputSingleton.input.param("alt_addr", False):
                 server.ip = rest.get_ip_from_ini_file()
             server.port = rest.port
