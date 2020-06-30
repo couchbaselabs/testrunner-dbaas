@@ -844,7 +844,7 @@ class VBucketAwareMemcached(object):
             server = TestInputServer()
             server.ip = serverIp
             self.log.info("add_memcached: server.ip={}".format(serverIp))
-            servers_map = TestInputSingleton.input.param("servers_map");
+            servers_map = TestInputSingleton.input.param("servers_map","");
             if servers_map:
                 log.info("servers_map={}".format(servers_map))
                 servers_ip_host = servers_map.split(",")

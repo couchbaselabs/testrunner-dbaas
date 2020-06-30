@@ -308,7 +308,7 @@ class RestConnection(object):
             self.services_node_init = self.input.param("new_services", None)
             self.debug_logs = self.input.param("debug-logs", False)
             self.http_protocol = self.input.param("http_protocol", "http")
-            self.servers_map = self.input.param("servers_map")
+            self.servers_map = self.input.param("servers_map", "")
         self.baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.port)
         self.fts_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.fts_port)
         self.index_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.index_port)

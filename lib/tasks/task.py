@@ -43,11 +43,17 @@ from functools import cmp_to_key
 
 try:
     CHECK_FLAG = False
-    if (testconstants.TESTRUNNER_CLIENT == testconstants.PYTHON_SDK):
+    print("------------>Checking testrunner client: {}".format(testconstants.TESTRUNNER_CLIENT))
+    if ((TestInputSingleton.input.param(testconstants.TESTRUNNER_CLIENT,
+                                        testconstants.TESTRUNNER_CLIENT) == testconstants.PYTHON_SDK)
+            or ((testconstants.TESTRUNNER_CLIENT in list(os.environ.keys())) and
+        os.environ[testconstants.TESTRUNNER_CLIENT] == testconstants.PYTHON_SDK)):
         try:
+            print("------------>Try to use Python SDK2")
             from sdk_client import SDKSmartClient as VBucketAwareMemcached
             from sdk_client import SDKBasedKVStoreAwareSmartClient as KVStoreAwareSmartClient
         except:
+            print("------------>Exception with Python SDK2 and Using Python SDK3")
             from sdk_client3 import SDKSmartClient as VBucketAwareMemcached
             from sdk_client3 import SDKBasedKVStoreAwareSmartClient as KVStoreAwareSmartClient
     else:
@@ -56,9 +62,11 @@ try:
 except Exception as e:
     CHECK_FLAG = False
     try:
+        print("------------>Using Python SDK2")
         from sdk_client import SDKSmartClient as VBucketAwareMemcached
         from sdk_client import SDKBasedKVStoreAwareSmartClient as KVStoreAwareSmartClient
     except:
+        print("------------>Exception with Python SDK2 and Using Python SDK3")
         from sdk_client3 import SDKSmartClient as VBucketAwareMemcached
         from sdk_client3 import SDKBasedKVStoreAwareSmartClient as KVStoreAwareSmartClient
 
