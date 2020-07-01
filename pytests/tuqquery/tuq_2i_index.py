@@ -24,7 +24,9 @@ class QueriesIndexTests(QueryTests):
             self.log.error("MAX NUMBER OF INDEXES IS 3. ALL TESTS WILL BE SKIPPED")
             self.fail('MAX NUMBER OF INDEXES IS 3. ALL TESTS WILL BE SKIPPED')
         self.rest = RestConnection(self.master)
-        self.shell = RemoteMachineShellConnection(self.master)
+        self.skip_host_login = self.input.param("skip_host_login", False)
+        if not self.skip_host_login:
+            self.shell = RemoteMachineShellConnection(self.master)
         self.delete_sample = self.input.param("delete_sample", False)
         self.log.info("==============  QueriesIndexTests setup has completed ==============")
         self.log_config_info()

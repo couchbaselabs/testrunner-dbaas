@@ -65,10 +65,12 @@ class QueryTests(BaseTestCase):
         self.version = self.input.param("cbq_version", "sherlock")
         self.flat_json = self.input.param("flat_json", False)
         self.directory_flat_json = self.input.param("directory_flat_json", "/tmp/")
-        if self.input.tuq_client and "client" in self.input.tuq_client:
-            self.shell = RemoteMachineShellConnection(self.input.tuq_client["client"])
-        else:
-            self.shell = RemoteMachineShellConnection(self.master)
+        self.skip_host_login = self.input.param("skip_host_login", False)
+        if not self.skip_host_login:
+            if self.input.tuq_client and "client" in self.input.tuq_client:
+                self.shell = RemoteMachineShellConnection(self.input.tuq_client["client"])
+            else:
+                self.shell = RemoteMachineShellConnection(self.master)
         if self.input.param("start_cmd", True) and self.input.param("cbq_version", "sherlock") != 'sherlock':
             self._start_command_line_query(self.master, user=self.master.rest_username,
                                            password=self.master.rest_password)
@@ -102,9 +104,11 @@ class QueryTests(BaseTestCase):
         self.named_prepare = self.input.param("named_prepare", None)
         self.encoded_prepare = self.input.param("encoded_prepare", False)
         self.scan_consistency = self.input.param("scan_consistency", 'REQUEST_PLUS')
-        shell = RemoteMachineShellConnection(self.master)
-        type = shell.extract_remote_info().distribution_type
-        shell.disconnect()
+        type = "linux"
+        if not self.skip_host_login:
+            shell = RemoteMachineShellConnection(self.master)
+            type = shell.extract_remote_info().distribution_type
+            shell.disconnect()
         self.path = testconstants.LINUX_COUCHBASE_BIN_PATH
         self.array_indexing = self.input.param("array_indexing", False)
         self.load_sample = self.input.param("load_sample", False)
@@ -122,7 +126,6 @@ class QueryTests(BaseTestCase):
         self.username = self.rest.username
         self.password = self.rest.password
         self.cover = self.input.param("cover", False)
-        self.bucket_name = self.input.param("bucket_name", "default")
         self.curl_path = "curl"
         self.n1ql_certs_path = "/opt/couchbase/var/lib/couchbase/n1qlcerts"
         if type.lower() == 'windows':
@@ -349,7 +352,7 @@ class QueryTests(BaseTestCase):
     def create_fts_index(self, name, source_type='couchbase',
                          source_name=None, index_type='fulltext-index',
                          index_params=None, plan_params=None,
-                         source_params=None, source_uuid=None, doc_count=1000, index_storage_type=None):
+                         source_params=None, source_uuid=None, doc_count=1000):
         """Create fts index/alias
         @param node: Node on which index is created
         @param name: name of the index/alias
@@ -371,9 +374,6 @@ class QueryTests(BaseTestCase):
         self.cbcluster = CouchbaseCluster(name='cluster', nodes=self.servers, log=self.log)
         if not self.custom_map:
             index_params = {
-                "default_analyzer": "keyword",
-                "default_datetime_parser": "dateTimeOptional",
-                "default_field": "_all",
                 "default_mapping": {
                     "enabled": True,
                     "dynamic": True,
@@ -394,8 +394,7 @@ class QueryTests(BaseTestCase):
             plan_params,
             source_params,
             source_uuid,
-            self.dataset,
-            index_storage_type
+            self.dataset
         )
         fts_index.create()
 
@@ -1259,6 +1258,8 @@ class QueryTests(BaseTestCase):
         # self.assertTrue(sorted(result_no_prepare) == sorted(result_with_prepare), msg)
 
     def run_cbq_query_curl(self, query=None, server=None):
+        if self.skip_host_login:
+           return None
         if query is None:
             query = self.query
         if server is None:
@@ -2503,19 +2504,19 @@ class QueryTests(BaseTestCase):
             for bucket in self.buckets:
                 list.append(bucket.name)
             names = ','.join(list)
-            self.query = "GRANT {0} on `{1}` to {2}".format(role, names, self.users[0]['id'])
+            self.query = "GRANT {0} on {1} to {2}".format(role, names, self.users[0]['id'])
             actual_result = self.run_cbq_query()
         elif "," in role:
             roles = role.split(",")
             for role in roles:
                 role1 = role.split("(")[0]
                 name = role.split("(")[1][:-1]
-                self.query = "GRANT {0} on `{1}` to {2}".format(role1, name, self.users[0]['id'])
+                self.query = "GRANT {0} on {1} to {2}".format(role1, name, self.users[0]['id'])
                 actual_result = self.run_cbq_query()
         elif "(" in role:
             role1 = role.split("(")[0]
             name = role.split("(")[1][:-1]
-            self.query = "GRANT {0} on `{1}` to {2}".format(role1, name, self.users[0]['id'])
+            self.query = "GRANT {0} on {1} to {2}".format(role1, name, self.users[0]['id'])
             actual_result = self.run_cbq_query()
         else:
             self.query = "GRANT {0} to {1}".format(role, self.users[0]['id'])
@@ -2554,7 +2555,7 @@ class QueryTests(BaseTestCase):
         self.assertTrue(res['metrics']['resultCount'] == 1)
         res = self.curl_with_roles('select * from system:keyspaces')
 
-        if role in ["query_update(default)", "query_delete(default)", "query_insert(default)","query_insert({0})".format(self.bucket_name),"query_update({0})".format(self.bucket_name),"query_delete({0})".format(self.bucket_name)]:
+        if role in ["query_update(default)", "query_delete(default)", "query_insert(default)"]:
             self.assertTrue(res['status'] == 'success')
         elif role.startswith("query_") or role.startswith("select") or role in ["bucket_full_access(default)",
                                                                                 "query_delete(default)"]:
@@ -2562,25 +2563,25 @@ class QueryTests(BaseTestCase):
         else:
             self.assertTrue(res['metrics']['resultCount'] == 2)
 
-        self.query = 'create primary index on `{0}`'.format(self.buckets[0].name)
+        self.query = 'create primary index on {0}'.format(self.buckets[0].name)
         try:
             self.curl_with_roles(self.query)
         except Exception as ex:
             self.log.error(ex)
 
-        if role not in ["query_insert(default)", "query_update(default)", "query_delete(default)","query_insert({0})".format(self.bucket_name),"query_update({0})".format(self.bucket_name),"query_delete({0})".format(self.bucket_name)]:
-            self.query = 'create primary index on `{0}`'.format(self.buckets[1].name)
+        if role not in ["query_insert(default)", "query_update(default)", "query_delete(default)"]:
+            self.query = 'create primary index on {0}'.format(self.buckets[1].name)
             try:
                 self.curl_with_roles(self.query)
             except Exception as ex:
                 self.log.error(ex)
 
-        if role not in ["views_admin(standard_bucket0)", "views_admin(default)", "query_insert(default)","query_insert({0})".format(self.bucket_name),"query_update({0})".format(self.bucket_name),"query_delete({0})".format(self.bucket_name),
+        if role not in ["views_admin(standard_bucket0)", "views_admin(default)", "query_insert(default)",
                         "query_update(default)", "query_delete(default)"]:
-            self.query = 'create index idx1 on `{0}`(name)'.format(self.buckets[0].name)
+            self.query = 'create index idx1 on {0}(name)'.format(self.buckets[0].name)
             res = self.curl_with_roles(self.query)
             # self.sleep(10)
-            self.query = 'create index idx2 on `{0}`(name)'.format(self.buckets[1].name)
+            self.query = 'create index idx2 on {0}(name)'.format(self.buckets[1].name)
             self.curl_with_roles(self.query)
             # self.sleep(10)
             self.query = 'select * from system:indexes'
@@ -2609,9 +2610,9 @@ class QueryTests(BaseTestCase):
         if role == "bucket_full_access(default)":
             self.assertTrue(res['status'] == 'stopped')
         elif role in ["select(default)", "query_select(default)", "select(standard_bucket0)",
-                      "query_select(standard_bucket0)","select({0})".format(self.bucket_name), "query_select({0})".format(self.bucket_name)]:
+                      "query_select(standard_bucket0)"]:
             self.assertTrue(str(res).find("'code': 13014") != -1)
-        elif role in ["insert(default)", "query_insert(default)", "query_update(default)", "query_delete(default)","insert(({0})".format(self.bucket_name), "query_insert({0})".format(self.bucket_name), "query_update({0})".format(self.bucket_name), "query_delete({0})".format(self.bucket_name)]:
+        elif role in ["insert(default)", "query_insert(default)", "query_update(default)", "query_delete(default)"]:
             self.assertTrue(res['status'] == 'fatal')
         else:
             self.assertTrue(res['status'] == 'success')
@@ -2636,12 +2637,12 @@ class QueryTests(BaseTestCase):
         #     self.assertTrue(str(res).find("'code': 13014")!=-1)
         # else:
         #     self.assertTrue(res['metrics']['resultCount']> 0)
-        if role not in ["ro_admin", "replication_admin", "query_insert(default)", "query_delete(default)","query_insert({0})".format(self.bucket_name),"query_update({0})".format(self.bucket_name),"query_delete({0})".format(self.bucket_name),
+        if role not in ["ro_admin", "replication_admin", "query_insert(default)", "query_delete(default)",
                         "query_update(default)", "bucket_full_access(default)", "query_system_catalog",
                         "views_admin(default)"]:
-            self.query = "prepare `st1{0}` from select * from `{0}` union select * from `{0}` union select * from `{0}`".format(self.bucket_name)
+            self.query = "prepare st1 from select * from default union select * from default union select * from default"
             res = self.curl_with_roles(self.query)
-            self.query = 'execute `st1{0}`'.format(self.bucket_name)
+            self.query = 'execute st1'
             res = self.curl_with_roles(self.query)
             if role in ["bucket_admin(standard_bucket0)", "views_admin(standard_bucket0)", "replication_admin"]:
                 self.assertTrue(str(res).find("'code': 4040") != -1)
@@ -2650,23 +2651,23 @@ class QueryTests(BaseTestCase):
             else:
                 self.assertTrue(res['status'] == 'success')
 
-            if role not in ["query_insert(default)", "query_delete(default)", "query_update(default)","query_insert({0})".format(self.bucket_name),"query_update({0})".format(self.bucket_name),"query_delete({0})".format(self.bucket_name)]:
-                self.query = "prepare `st2{0}` from select * from `{0}` union select * from " \
-                             "standard_bucket0 union select * from `{0}`".format(self.bucket_name)
+            if role not in ["query_insert(default)", "query_delete(default)", "query_update(default)"]:
+                self.query = "prepare st2 from select * from default union select * from " \
+                             "standard_bucket0 union select * from default"
                 res = self.curl_with_roles(self.query)
 
                 if role in ["bucket_admin(standard_bucket0)", "views_admin(standard_bucket0)",
                             "views_admin(default)", "views_admin", "bucket_admin(default)", "replication_admin",
-                            "query_system_catalog", "select(default)", "query_select(default)","select({0})".format(self.bucket_name), "query_select({0})".format(self.bucket_name)]:
+                            "query_system_catalog", "select(default)", "query_select(default)"]:
                     self.assertTrue(str(res).find("'code': 13014") != -1)
                 else:
                     self.assertTrue(res['metrics']['resultCount'] > 0)
 
-                self.query = 'execute `st2{0}`'
+                self.query = 'execute st2'
                 res = self.curl_with_roles(self.query)
                 if role in ["bucket_admin(standard_bucket0)", "views_admin(standard_bucket0)", "views_admin(default)",
                             "views_admin", "bucket_admin(default)", "replication_admin", "query_system_catalog",
-                            "select(default)", "query_select(default)","select({0})".format(self.bucket_name), "query_select({0})".format(self.bucket_name)]:
+                            "select(default)", "query_select(default)"]:
                     self.assertTrue(str(res).find("'code': 4040") != -1)
                 else:
                     self.assertTrue(res['status'] == 'success')
@@ -2674,19 +2675,19 @@ class QueryTests(BaseTestCase):
                 self.query = 'select * from system:completed_requests'
                 res = self.curl_with_roles(self.query)
 
-                if role == "select(default)" or role == "query_select(default)" or role == "select({0})".format(self.bucket_name) or role == "query_select({0})".format(self.bucket_name):
+                if role == "select(default)" or role == "query_select(default)":
                     self.assertTrue(str(res).find("'code': 13014") != -1)
                 elif role == "bucket_admin(standard_bucket0)":
                     self.assertTrue(res['metrics']['resultCount'] > 0)
                 else:
                     self.assertTrue(res['status'] == 'success')
 
-        if role not in ["query_insert(default)", "query_delete(default)", "query_update(default)","query_insert({0})".format(self.bucket_name),"query_update({0})".format(self.bucket_name),"query_delete({0})".format(self.bucket_name),
+        if role not in ["query_insert(default)", "query_delete(default)", "query_update(default)",
                         "bucket_full_access(default)", "ro_admin"]:
             self.query = 'select * from system:prepareds'
             res = self.curl_with_roles(self.query)
 
-            if role == "select(default)" or role == "query_select(default)" or role == "select({0})".format(self.bucket_name) or role == "query_select({0})".format(self.bucket_name):
+            if role == "select(default)" or role == "query_select(default)":
                 self.assertTrue(str(res).find("'code': 13014") != -1)
             else:
                 self.assertTrue(res['status'] == 'success')
@@ -2694,7 +2695,7 @@ class QueryTests(BaseTestCase):
             self.query = 'select * from system:active_requests'
             res = self.curl_with_roles(self.query)
 
-            if role == "select(default)" or role == "query_select(default)" or role == "select({0})".format(self.bucket_name) or role == "query_select({0})".format(self.bucket_name):
+            if role == "select(default)" or role == "query_select(default)":
                 self.assertTrue(str(res).find("'code': 13014") != -1)
             else:
                 self.assertTrue(res['metrics']['resultCount'] > 0)
@@ -2709,9 +2710,9 @@ class QueryTests(BaseTestCase):
         if role == "views_admin(default)":
             self.assertTrue(res['status'] == 'success')
         elif role in ["bucket_admin(standard_bucket0)", "bucket_admin(default)", "select(default)",
-                      "query_select(default)", "query_select({0})".format(self.bucket_name), "select({0})".format(self.bucket_name)]:
+                      "query_select(default)"]:
             self.assertTrue(res['metrics']['resultCount'] == 1)
-        elif role in ["query_insert(default)", "query_delete(default)", "query_update(default)","query_insert({0})".format(self.bucket_name),"query_update({0})".format(self.bucket_name),"query_delete({0})".format(self.bucket_name)]:
+        elif role in ["query_insert(default)", "query_delete(default)", "query_update(default)"]:
             self.assertTrue(res['metrics']['resultCount'] == 0)
             # elif (role == "ro_admin"):
             #     self.assertTrue(res['metrics']['resultCount']==2)

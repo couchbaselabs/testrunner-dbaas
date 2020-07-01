@@ -760,9 +760,15 @@ class BaseTestCase(unittest.TestCase):
             task.result(self.wait_timeout)
 
     def _get_bucket_size(self, mem_quota, num_buckets):
+        print("---> _get_bucket_size ..")
         # min size is 100MB now
+        max_bucket_ram = self.input.param("max_bucket_ram", "")
         if num_buckets > 0:
-            return max(100, int(float(mem_quota) / float(num_buckets)))
+            bsize = max(100, int(float(mem_quota) / float(num_buckets)))
+            if max_bucket_ram:
+                return min(int(max_bucket_ram),bsize)
+            else:
+                return bsize
         else:
             return 100
 

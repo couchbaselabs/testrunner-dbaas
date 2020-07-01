@@ -2647,12 +2647,16 @@ class RestConnection(object):
         maxwait = 60
         for numsleep in range(maxwait):
             status, content, header = self._http_request(api, 'POST', params)
+            print("--> status={}, content={}".format(header["status"],content.decode('utf-8').rstrip('\n')))
             if status:
                 break
-            elif (int(header['status']) == 503 and
-                    '{"_":"Bucket with given name still exists"}' in content):
-                log.info("The bucket still exists, sleep 1 sec and retry")
+            elif ( (int(header['status']) == 400 or int(header['status']) == 503 ) and
+                    "Bucket with given name already exists" in content.decode('utf-8').rstrip('\n')):
+                log.info("The bucket still exists, sleep 1 sec and delete and retry")
                 time.sleep(1)
+                self.delete_bucket(bucket)
+                time.sleep(1)
+
             else:
                 raise BucketCreationException(ip=self.ip, bucket_name=bucket)
 
