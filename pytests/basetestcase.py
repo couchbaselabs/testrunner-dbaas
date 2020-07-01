@@ -218,8 +218,8 @@ class BaseTestCase(unittest.TestCase):
                 self.buckets = RestConnection(self.master).get_buckets()
                 return
             self.log.info("--> Check for skip_init_check_cbserver...")
+            self.cb_version = None
             if not self.skip_init_check_cbserver:
-                self.cb_version = None
                 if RestHelper(RestConnection(self.master)).is_ns_server_running():
                     """ since every new couchbase version, there will be new features
                         that test code will not work on previous release.  So we need
