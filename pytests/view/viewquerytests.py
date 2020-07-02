@@ -868,7 +868,10 @@ class ViewQueryTests(BaseTestCase):
             self.load(data_set, gen_load)
             for server in self.servers:
                 self.log.info("-->RebalanceHelper.wait_for_persistence({},{}".format(server, data_set.bucket))
-                RebalanceHelper.wait_for_persistence(server, data_set.bucket)
+                # TBD on using SDK or REST instead of memcache direct
+                # RebalanceHelper.wait_for_persistence(server, data_set.bucket)
+                self.sleep(30, "30 seconds wait to load...")
+
             self.log.info("-->_query_all_views...")
             self._query_all_views(data_set.views, gen_load)
         else:
@@ -1987,7 +1990,10 @@ class ViewQueryTests(BaseTestCase):
                 isinstance(threading.currentThread(), StoppableThread):
                 threading.currentThread().tasks.append(task)
             task.result()
-            RebalanceHelper.wait_for_persistence(data_set.server, bucket.name)
+            # TBD on using SDK or REST instead of memcache
+            # direct
+            # RebalanceHelper.wait_for_persistence(data_set.server, bucket.name)
+            self.sleep(30, "30 seconds wait to load...")
             self.log.info("LOAD IS FINISHED")
             return gens_load
         except Exception as ex:

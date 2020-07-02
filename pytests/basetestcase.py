@@ -2513,9 +2513,12 @@ class BaseTestCase(unittest.TestCase):
                                       .format(ip, hostname))
                         ip = hostname
                         shell.disconnect()
+                    self.log.info("-->service_type={}, server.ip={},server.port={}".format(
+                        service_type, server.ip, server.port))
                     if (port != 8091 and port == int(server.port)) or \
                             (port == 8091 and server.ip.lower() == ip.lower()):
                         list.append(server)
+
             self.log.info("list of {0} nodes in cluster: {1}".format(service_type, list))
             if get_all_nodes:
                 return list

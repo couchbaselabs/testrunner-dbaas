@@ -1296,6 +1296,7 @@ class QueryTests(BaseTestCase):
         if use_fts_query_param:
             query_params['use_fts'] = True
         if self.testrunner_client == 'python_sdk' and not is_prepared:
+            self.log.info("-->Using Python SDK")
             sdk_cluster = Cluster('couchbase://' + str(server.ip))
             authenticator = PasswordAuthenticator(username, password)
             sdk_cluster.authenticate(authenticator)
@@ -1327,6 +1328,7 @@ class QueryTests(BaseTestCase):
                 result = ast.literal_eval(str(e).split("value=")[1].split(", http_status")[0])
 
         elif self.use_rest:
+            self.log.info("-->Using REST")
             query_params.update({'scan_consistency': self.scan_consistency})
             if hasattr(self, 'query_params') and self.query_params:
                 query_params = self.query_params

@@ -368,7 +368,15 @@ class BucketCreateTask(Task):
                 self.set_result(True)
                 self.state = FINISHED
                 return
-            if BucketOperationHelper.wait_for_memcached(self.server, self.bucket, self.alt_addr):
+
+            try:
+                rest = RestConnection(self.server)
+            except Exception as error:
+                pass
+            if BucketOperationHelper.wait_for_bucket_creation(self.bucket,
+                                                              rest) \
+                    or BucketOperationHelper.wait_for_memcached(self.server, self.bucket, \
+                            self.alt_addr):
                 self.log.info("bucket '{0}' was created with per node RAM quota: {1}".format(self.bucket, self.size))
                 self.set_result(True)
                 self.state = FINISHED
