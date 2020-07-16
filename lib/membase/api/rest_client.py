@@ -14,7 +14,7 @@ from TestInput import TestInputSingleton
 from TestInput import TestInputServer
 from testconstants import MIN_KV_QUOTA, INDEX_QUOTA, FTS_QUOTA, CBAS_QUOTA
 from testconstants import COUCHBASE_FROM_VERSION_4, IS_CONTAINER, CLUSTER_QUOTA_RATIO
-
+import server_ports
 
 try:
     from couchbase_helper.document import DesignDocument, View
@@ -35,6 +35,35 @@ class RestHelper(object):
     def __init__(self, rest_connection):
         self.rest = rest_connection
 
+    def is_ns_server_running_old(self, timeout_in_seconds=360):
+        log.info("-->is_ns_server_running?")
+        end_time = time.time() + timeout_in_seconds
+        is_admin = self.input.param("is_admin", True)
+        while time.time() <= end_time:
+            if is_admin:
+                try:
+                    status = self.rest.get_nodes_self(5)
+                    if status is not None and status.status == 'healthy':
+                        return True
+                    else:
+                        if status is not None:
+                            log.warn("server {0}:{1} status is {2}"\
+                                .format(self.rest.ip, self.rest.port, status.status))
+                        else:
+                            log.warn("server {0}:{1} status is down"\
+                                               .format(self.rest.ip, self.rest.port))
+                except ServerUnavailableException:
+                    log.error("server {0}:{1} is unavailable"\
+                                               .format(self.rest.ip, self.rest.port))
+                time.sleep(5)
+            else:
+                http_res, status = self.init_http_request(api=self.baseUrl + "/couchBase")
+                if status:
+                    return True
+
+        msg = 'unable to connect to the node {0} even after waiting {1} seconds'
+        log.error(msg.format(self.rest.ip, timeout_in_seconds))
+        return False
     def is_ns_server_running(self, timeout_in_seconds=360):
         log.info("-->is_ns_server_running?")
         end_time = time.time() + timeout_in_seconds
@@ -54,6 +83,7 @@ class RestHelper(object):
                 log.error("server {0}:{1} is unavailable"\
                                            .format(self.rest.ip, self.rest.port))
             time.sleep(5)
+
         msg = 'unable to connect to the node {0} even after waiting {1} seconds'
         log.error(msg.format(self.rest.ip, timeout_in_seconds))
         return False
@@ -233,8 +263,8 @@ class RestConnection(object):
             port = serverInfo.port
 
         if not port:
-            port = 8091
-
+            port = server_ports.rest_port
+        log.info("-->RestConnection {}, {}".format(port, serverInfo))
         if int(port) in range(9091, 9100):
             # return elastic search rest connection
             from membase.api.esrest_client import EsRestConnection
@@ -247,16 +277,31 @@ class RestConnection(object):
 
     def __init__(self, serverInfo):
         # serverInfo can be a json object/dictionary
+        self.input = TestInputSingleton.input
+        self.is_secure = self.input.param("is_secure", False)
+        if not self.is_secure:
+            self.rest_port = server_ports.rest_port
+            self.index_port = server_ports.indexer_http_port
+            self.fts_port = server_ports.fts_http_port
+            self.query_port = server_ports.query_port
+            self.eventing_port = server_ports.eventing_http_port
+            self.capi_port = server_ports.capi_port
+            self.cbas_port = server_ports.cbas_http_port
+        else:
+            self.rest_port = server_ports.ssl_rest_port
+            self.index_port = server_ports.indexer_http_port
+            self.fts_port = server_ports.fts_ssl_port
+            self.query_port = server_ports.ssl_query_port
+            self.eventing_port = server_ports.eventing_ssl_port
+            self.capi_port = server_ports.ssl_capi_port
+            self.cbas_port = server_ports.cbas_ssl_port
         if isinstance(serverInfo, dict):
             self.ip = serverInfo["ip"]
             log.info("-->self.ip={}".format(self.ip))
             self.username = serverInfo["username"]
             self.password = serverInfo["password"]
             self.port = serverInfo["port"]
-            self.index_port = 9102
-            self.fts_port = 8094
-            self.query_port = 8093
-            self.eventing_port = 8096
+
             if "index_port" in list(serverInfo.keys()):
                 self.index_port = serverInfo["index_port"]
             if "fts_port" in list(serverInfo.keys()):
@@ -277,10 +322,7 @@ class RestConnection(object):
             self.password = serverInfo.rest_password
             self.port = serverInfo.port
             self.hostname = ''
-            self.index_port = 9102
-            self.fts_port = 8094
-            self.query_port = 8093
-            self.eventing_port = 8096
+
             self.services = "kv"
             self.debug_logs = False
             if hasattr(serverInfo, "services"):
@@ -301,7 +343,7 @@ class RestConnection(object):
             if hasattr(serverInfo, 'services'):
                 self.services = serverInfo.services
         self.http_protocol = "http"
-        self.input = TestInputSingleton.input
+
         if self.input is not None:
             """ from watson, services param order and format:
                 new_services=fts-kv-index-n1ql """
@@ -313,32 +355,37 @@ class RestConnection(object):
         self.fts_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.fts_port)
         self.index_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.index_port)
         self.query_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.query_port)
-        self.capiBaseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, 8092)
+        self.capiBaseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.capi_port)
         self.eventing_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip,
                                                      self.eventing_port)
         if self.hostname:
             self.baseUrl = "http://{0}:{1}/".format(self.hostname, self.port)
-            self.capiBaseUrl = "http://{0}:{1}/".format(self.hostname, 8092)
-            self.query_baseUrl = "http://{0}:{1}/".format(self.hostname, 8093)
+            self.capiBaseUrl = "http://{0}:{1}/".format(self.hostname, self.capi_port)
+            self.query_baseUrl = "http://{0}:{1}/".format(self.hostname, self.query_port)
             self.eventing_baseUrl = "http://{0}:{1}/".format(self.hostname, self.eventing_port)
 
         # Initialization of CBAS related params
-        self.cbas_base_url = "http://{0}:{1}".format(self.ip, 8095)
+        self.cbas_base_url = "http://{0}:{1}".format(self.ip, self.cbas_port)
         if hasattr(self.input, 'cbas'):
             if self.input.cbas:
                 self.cbas_node = self.input.cbas
-                self.cbas_port = 8095
+                self.cbas_port = self.cbas_port
                 if hasattr(self.cbas_node, 'port'):
                     self.cbas_port = self.cbas_node.port
                 self.cbas_base_url = "http://{0}:{1}".format(
                     self.cbas_node.ip,
                     self.cbas_port)
             elif "cbas" in self.services:
-                self.cbas_base_url = "http://{0}:{1}".format(self.ip, 8095)
+                self.cbas_base_url = "http://{0}:{1}".format(self.ip, self.cbas_port)
 
         # for Node is unknown to this cluster error
+        if self.input.param("is_admin", True):
+            api_path = "nodes/self"
+        else:
+            api_path = "pools/default"
         for iteration in range(5):
-            http_res, success = self.init_http_request(api=self.baseUrl + "nodes/self")
+            http_res, success = self.init_http_request(api=self.baseUrl + api_path)
+
             if not success and isinstance(http_res, str) and\
                (http_res.find('Node is unknown to this cluster') > -1 or \
                 http_res.find('Unexpected server error, request logged') > -1):
@@ -364,13 +411,18 @@ class RestConnection(object):
                             self.capiBaseUrl = self.baseUrl + "/couchBase"
                             return
                         time.sleep(0.2)
-                        http_res, success = self.init_http_request(self.baseUrl + 'nodes/self')
+                        print("-->Connecting to {}/{} ".format(self.baseUrl, api_path))
+                        http_res, success = self.init_http_request(self.baseUrl + api_path)
                     else:
-                        self.capiBaseUrl = http_res["couchApiBase"]
+                        if self.input.param("is_admin", True):
+                            self.capiBaseUrl = http_res["couchApiBase"]
+                        else:
+                            # TBD: fix for matched node
+                            self.capiBaseUrl = http_res["nodes"][0]["couchApiBase"]
                         return
-                raise ServerUnavailableException("couchApiBase doesn't exist in nodes/self: %s " % http_res)
-        except:
-            log.warning("server might not be running?")
+                raise ServerUnavailableException("couchApiBase doesn't exist: %s " % http_res)
+        except Exception as e:
+            log.warning("server might not be running? {}".format(e))
     def sasl_streaming_rq(self, bucket, timeout=120):
         api = self.baseUrl + 'pools/default/bucketsStreaming/{0}'.format(bucket)
         if isinstance(bucket, Bucket):
@@ -1545,7 +1597,11 @@ class RestConnection(object):
         This fx will detect that delay and return true when couchbase server down and
         up again after force reject """
     def check_delay_restart_coucbase_server(self):
-        api = self.baseUrl + 'nodes/self'
+        if self.input.param("is_admin", True):
+            api = self.baseUrl + 'nodes/self'
+        else:
+            api = self.baseUrl + 'couchBase'
+
         headers = self._create_headers()
         break_out = 0
         count_cbserver_up = 0
@@ -1972,11 +2028,18 @@ class RestConnection(object):
     # returns node data for this host
     def get_nodes_self(self, timeout=120):
         node = None
-        api = self.baseUrl + 'nodes/self'
+        if self.input.param("is_admin", True):
+            api_path = "nodes/self"
+        else:
+            api_path = "pools/default"
+        api = self.baseUrl + api_path
         status, content, header = self._http_request(api, timeout=timeout)
         if status:
             json_parsed = json.loads(content)
-            node = RestParser().parse_get_nodes_response(json_parsed)
+            if self.input.param("is_admin", True):
+                node = RestParser().parse_get_nodes_response(json_parsed)
+            else:
+                node = RestParser().parse_get_nodes_response(json_parsed['nodes'][0])
         return node
 
     def get_ip_from_ini_file(self):
@@ -2092,7 +2155,7 @@ class RestConnection(object):
             version = MembaseServerVersion(json_parsed['implementationVersion'], json_parsed['componentsVersion'])
         return version
 
-    def get_buckets(self, num_retries=3, poll_interval=15):
+    def get_buckets(self, num_retries=3, poll_interval=30):
         buckets = []
         api = '{0}{1}'.format(self.baseUrl, 'pools/default/buckets?basic_stats=true')
         buckets_are_received = False
@@ -2102,6 +2165,9 @@ class RestConnection(object):
             try:
                 # get all the buckets
                 status, content, header = self._http_request(api)
+                #log.error("-->get_buckets() status:{0},content:{1},header={2}".format(status,
+                #                                                                      content,
+                #                                                                      header))
                 json_parsed = json.loads(content)
                 if status:
                     for item in json_parsed:
@@ -3583,7 +3649,7 @@ class RestConnection(object):
     '''Start Monitoring/Profiling Rest Calls'''
     def set_completed_requests_collection_duration(self, server, min_time):
         http = httplib2.Http()
-        n1ql_port = 8093
+        n1ql_port = self.query_port
         api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
         body = {"completed-threshold": min_time}
         headers = self._create_headers_with_auth('Administrator', 'password')
@@ -3592,7 +3658,7 @@ class RestConnection(object):
 
     def set_completed_requests_max_entries(self, server, no_entries):
         http = httplib2.Http()
-        n1ql_port = 8093
+        n1ql_port = self.query_port
         api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
         body = {"completed-limit": no_entries}
         headers = self._create_headers_with_auth('Administrator', 'password')
@@ -3601,7 +3667,7 @@ class RestConnection(object):
 
     def set_profiling(self, server, setting):
         http = httplib2.Http()
-        n1ql_port = 8093
+        n1ql_port = self.query_port
         api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
         body = {"profile": setting}
         headers = self._create_headers_with_auth('Administrator', 'password')
@@ -3610,7 +3676,7 @@ class RestConnection(object):
 
     def set_profiling_controls(self, server, setting):
         http = httplib2.Http()
-        n1ql_port = 8093
+        n1ql_port = self.query_port
         api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
         body = {"controls": setting}
         headers = self._create_headers_with_auth('Administrator', 'password')
@@ -3619,7 +3685,7 @@ class RestConnection(object):
 
     def get_query_admin_settings(self, server):
         http = httplib2.Http()
-        n1ql_port = 8093
+        n1ql_port = self.query_port
         api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "GET", headers=headers)
@@ -3628,7 +3694,7 @@ class RestConnection(object):
 
     def get_query_vitals(self, server):
         http = httplib2.Http()
-        n1ql_port = 8093
+        n1ql_port = self.query_port
         api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/vitals"
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "GET", headers=headers)
@@ -3642,7 +3708,9 @@ class RestConnection(object):
         response, content = http.request(api, "POST", headers=headers, body=json.dumps(whitelist))
         return response, content
 
-    def query_tool(self, query, port=8093, timeout=1300, query_params={}, is_prepared=False, named_prepare=None,
+    def query_tool(self, query, port=server_ports.query_port, timeout=1300, query_params={},
+                   is_prepared=False,
+                   named_prepare=None,
                    verbose = True, encoded_plan=None, servers=None):
         key = 'prepared' if is_prepared else 'statement'
         headers = None
@@ -3652,9 +3720,9 @@ class RestConnection(object):
             if named_prepare and encoded_plan:
                 http = httplib2.Http()
                 if len(servers)>1:
-                    url = "http://%s:%s/query/service" % (servers[1].ip, port)
+                    url = "%s://%s:%s/query/service" % (self.http_protocol,servers[1].ip, port)
                 else:
-                    url = "http://%s:%s/query/service" % (self.ip, port)
+                    url = "%s://%s:%s/query/service" % (self.http_protocol, self.ip, port)
 
                 headers = self._create_headers_encoded_prepared()
                 body = {'prepared': named_prepare, 'encoded_plan':encoded_plan}
@@ -3676,7 +3744,7 @@ class RestConnection(object):
             if 'creds' in query_params and query_params['creds']:
                 headers = self._create_headers_with_auth(query_params['creds'][0]['user'],
                                                          query_params['creds'][0]['pass'])
-            api = "http://%s:%s/query/service?%s" % (self.ip, port, params)
+            api = "%s://%s:%s/query/service?%s" % (self.http_protocol, self.ip, port, params)
             log.info("%s"%api)
         else:
             params = {key : query}
@@ -3692,11 +3760,13 @@ class RestConnection(object):
             params = urllib.parse.urlencode(params)
             if verbose:
                 log.info('query params : {0}'.format(params))
-            api = "http://%s:%s/query?%s" % (self.ip, port, params)
+            api = "%s://%s:%s/query?%s" % (self.http_protocol, self.ip, port, params)
 
         if 'query_context' in query_params and query_params['query_context']:
             log.info(f"Running Query with query_context: {query_params['query_context']}")
+        #log.info("-->Running _http_request {}".format(api))
         status, content, header = self._http_request(api, 'POST', timeout=timeout, headers=headers)
+        #log.info("-->status:{},content={},header={}".format(status,content,header))
         try:
             return json.loads(content)
         except ValueError:
@@ -3754,7 +3824,7 @@ class RestConnection(object):
 
     def query_tool_stats(self):
         log.info('query n1ql stats')
-        api = "http://%s:8093/admin/stats" % (self.ip)
+        api = "http://%s:%s/admin/stats" % (self.ip, self.query_port)
         status, content, header = self._http_request(api, 'GET')
         log.info(content)
         try:
@@ -3764,7 +3834,7 @@ class RestConnection(object):
 
     def index_tool_stats(self):
         log.info('index n1ql stats')
-        api = "http://%s:8091/indexStatus" % (self.ip)
+        api = "http://%s:%s/indexStatus" % (self.ip, self.port)
         params = ""
         status, content, header = self._http_request(api, 'GET', params)
         log.info(content)
@@ -5149,7 +5219,7 @@ class OtpNode(object):
         self.id = id
         self.ip = ''
         self.replication = ''
-        self.port = 8091
+        self.port = server_ports.rest_port
         self.gracefulFailoverPossible = 'true'
         # extract ns ip from the otpNode string
         # its normally ns_1@10.20.30.40
@@ -5249,7 +5319,7 @@ class Node(object):
         self.ip = ""
         self.rest_username = ""
         self.rest_password = ""
-        self.port = 8091
+        self.port = server_ports.rest_port
         self.services = []
         self.storageTotalRam = 0
 
@@ -5423,7 +5493,10 @@ class RestParser(object):
         if 'proxyPort' in parsed:
             bucket.port = parsed['proxyPort']
         bucket.authType = parsed["authType"]
-        bucket.saslPassword = parsed["saslPassword"]
+        try:
+            bucket.saslPassword = parsed["saslPassword"]
+        except:
+            pass
         bucket.nodes = list()
         if 'vBucketServerMap' in parsed:
             vBucketServerMap = parsed['vBucketServerMap']

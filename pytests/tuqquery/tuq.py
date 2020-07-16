@@ -37,6 +37,7 @@ from fts.random_query_generator.rand_query_gen import FTSFlexQueryGenerator
 from pytests.fts.fts_base import FTSIndex
 from pytests.fts.random_query_generator.rand_query_gen import DATASET
 from pytests.fts.fts_base import CouchbaseCluster
+import server_ports
 
 JOIN_INNER = "INNER"
 JOIN_LEFT = "LEFT"
@@ -89,7 +90,15 @@ class QueryTests(BaseTestCase):
         self.docs_per_day = self.input.param("doc-per-day", 49)
         self.item_flag = self.input.param("item_flag", 4042322160)
         self.ipv6 = self.input.param("ipv6", False)
-        self.n1ql_port = self.input.param("n1ql_port", 8093)
+        self.is_secure = self.input.param("is_secure", False)
+        if not self.is_secure:
+            self.n1ql_port = self.input.param("n1ql_port", server_ports.query_port)
+            self.http_protocol = self.input.param("http_protocol", "http")
+            self.cbas_http_port = self.input.param("cbas_http_port", server_ports.cbas_http_port)
+        else:
+            self.n1ql_port = self.input.param("n1ql_port", server_ports.ssl_query_port)
+            self.http_protocol = self.input.param("http_protocol", "https")
+            self.cbas_http_port = self.input.param("cbas_http_port", server_ports.cbas_ssl_port)
         self.analytics = self.input.param("analytics", False)
         self.query_context = self.input.param("query_context", None)
         self.dataset = getattr(self, 'dataset', self.input.param("dataset", "default"))
@@ -228,7 +237,8 @@ class QueryTests(BaseTestCase):
                 data += 'drop dataset {0} if exists;'.format(bucket.name + "_shadow")
                 data += 'drop bucket {0} if exists;'.format(bucket.name)
             self.write_file("file.txt", data)
-            url = 'http://{0}:8095/analytics/service'.format(self.cbas_node.ip)
+            url = '{1}://{0}:{2}/analytics/service'.format(self.cbas_node.ip, self.http_protocol,
+                                                           self.cbas_http_port)
             cmd = 'curl -s --data pretty=true --data-urlencode "statement@file.txt" ' + url + " -u " + bucket_username + ":" + bucket_password
             os.system(cmd)
             # os.remove(filename)
@@ -299,7 +309,8 @@ class QueryTests(BaseTestCase):
                                                                                             bucket_username,
                                                                                             bucket_password)
         self.write_file("file.txt", data)
-        url = 'http://{0}:8095/analytics/service'.format(self.cbas_node.ip)
+        url = '{1}://{0}:{2}/analytics/service'.format(self.cbas_node.ip, self.http_protocol,
+                                                       self.cbas_http_port)
         cmd = 'curl -s --data pretty=true --data-urlencode "statement@file.txt" ' + url + " -u " + bucket_username + ":" + bucket_password
         os.system(cmd)
         # os.remove(filename)
@@ -796,7 +807,7 @@ class QueryTests(BaseTestCase):
         for node in indexer_nodes:
             self.log.info("waiting for indexer on node: " + str(node.ip))
             node_rest = RestConnection(node)
-            indexer_url = "http://" + str(node.ip) + ":" + str(indexer_port) + "/"
+            indexer_url = self.http_protocol + "://" + str(node.ip) + ":" + str(indexer_port) + "/"
             node_ready = False
 
             while not node_ready:
@@ -1267,7 +1278,9 @@ class QueryTests(BaseTestCase):
 
         shell = RemoteMachineShellConnection(server)
         cmd = (
-                self.curl_path + " -u " + self.master.rest_username + ":" + self.master.rest_password + " http://" + server.ip + ":" + server.n1ql_port + "/query/service -d " \
+                self.curl_path + " -u " + self.master.rest_username + ":" + self.master.rest_password
+                + self.http_protocol + " ://" + server.ip + ":" + server.n1ql_port +
+        "/query/service -d " \
                                                                                                                                                           "statement=" + query)
 
         output, error = shell.execute_command(cmd)
@@ -1924,29 +1937,35 @@ class QueryTests(BaseTestCase):
 
     def check_permissions_helper(self):
         for bucket in self.buckets:
-            cmd = "%s -u %s:%s http://%s:8093/query/service -d " \
+            cmd = "%s -u %s:%s %s://%s:%s/query/service -d " \
                   "'statement=INSERT INTO %s (KEY, VALUE) VALUES(\"test\", { \"value1\": \"one1\" })'" % \
-                  (self.curl_path, 'john_insert', 'password', self.master.ip, bucket.name)
+                  (self.curl_path, 'john_insert', 'password', self.http_protocol, self.master.ip,
+                   self.n1ql_port,
+                   bucket.name)
             self.change_and_update_permission(None, None, 'johnInsert', bucket.name, cmd,
                                               "Unable to insert into {0} as user {1}")
 
             old_name = "employee-14"
             new_name = "employee-14-2"
-            cmd = "{6} -u {0}:{1} http://{2}:8093/query/service -d " \
+            cmd = "{6} -u {0}:{1} {8}://{2}:{7}/query/service -d " \
                   "'statement=UPDATE {3} a set name = '{4}' where name = '{5}' limit 1'". \
-                format('john_update', 'password', self.master.ip, bucket.name, new_name, old_name, self.curl_path)
+                format('john_update', 'password', self.master.ip, bucket.name, new_name,
+                       old_name, self.curl_path, self.n1ql_port, self.http_protocol)
             self.change_and_update_permission(None, None, 'johnUpdate', bucket.name, cmd,
                                               "Unable to update into {0} as user {1}")
 
             del_name = "employee-14"
-            cmd = "{5} -u {0}:{1} http://{2}:8093/query/service -d " \
+            cmd = "{5} -u {0}:{1} {7}://{2}:${6}/query/service -d " \
                   "'statement=DELETE FROM {3} a WHERE name = '{4}''". \
-                format('john_delete', 'password', self.master.ip, bucket.name, del_name, self.curl_path)
+                format('john_delete', 'password', self.master.ip, bucket.name, del_name,
+                       self.curl_path, self.n1ql_port, self.http_protocol)
             self.change_and_update_permission(None, None, 'john_delete', bucket.name, cmd,
                                               "Unable to delete from {0} as user {1}")
 
-            cmd = "{4} -u {0}:{1} http://{2}:8093/query/service -d 'statement=SELECT * from {3} LIMIT 10'". \
-                format('john_select2', 'password', self.master.ip, bucket.name, self.curl_path)
+            cmd = "{4} -u {0}:{1} {6}://{2}:{5}/query/service -d 'statement=SELECT * from {3} " \
+                  "LIMIT 10'". \
+                format('john_select2', 'password', self.master.ip, bucket.name, self.curl_path,
+                       self.n1ql_port, self.http_protocol)
             self.change_and_update_permission(None, None, 'john_select2', bucket.name, cmd,
                                               "Unable to select from {0} as user {1}")
 
@@ -3052,18 +3071,22 @@ class QueryTests(BaseTestCase):
     #
     ##############################################################################################
     def curl_helper(self, statement):
-        cmd = "{4} -u {0}:{1} http://{2}:8093/query/service -d 'statement={3}'". \
-            format('Administrator', 'password', self.master.ip, statement, self.curl_path)
+        cmd = "{4} -u {0}:{1} {5}://{2}:8093/query/service -d 'statement={3}'". \
+            format('Administrator', 'password', self.master.ip, statement, self.curl_path, self.http_protocol)
         return self.run_helper_cmd(cmd)
 
     def prepare_helper(self, statement):
-        cmd = '{4} -u {0}:{1} http://{2}:8093/query/service -d \'prepared="{3}"&$type="Engineer"&$name="employee-4"\''. \
-            format('Administrator', 'password', self.master.ip, statement, self.curl_path)
+        cmd = '{4} -u {0}:{1} {5}://{2}:{6}/query/service -d \'prepared="{' \
+              '3}"&$type="Engineer"&$name="employee-4"\''. \
+            format('Administrator', 'password', self.master.ip, statement, self.curl_path,
+                   self.http_protocol, self.n1ql_port)
         return self.run_helper_cmd(cmd)
 
     def prepare_helper2(self, statement):
-        cmd = '{4} -u {0}:{1} http://{2}:8093/query/service -d \'prepared="{3}"&args=["Engineer","employee-4"]\''. \
-            format('Administrator', 'password', self.master.ip, statement, self.curl_path)
+        cmd = '{4} -u {0}:{1} {5}://{2}:{6}/query/service -d \'prepared="{3}"&args=["Engineer",' \
+              '"employee-4"]\''. \
+            format('Administrator', 'password', self.master.ip, statement, self.curl_path,
+                   self.http_protocol, self.n1ql_port)
         return self.run_helper_cmd(cmd)
 
     def run_helper_cmd(self, cmd):
