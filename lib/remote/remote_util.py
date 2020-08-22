@@ -288,6 +288,9 @@ class RemoteMachineShellConnection(KeepRefs):
     def ssh_connect_with_retries(self, ip, ssh_username, ssh_password, ssh_key,
                                  exit_on_failure = False, max_attempts_connect = 5,
                                  backoff_time = 10):
+        if self.input.param("skip_host_login", False):
+            log.info("-->Skipping host login")
+            return
         # Retries with exponential backoff delay
         attempt = 0
         is_ssh_ok = False
@@ -4954,6 +4957,7 @@ class RemoteMachineShellConnection(KeepRefs):
         if (not is_cluster_compatible):
             log.info("Enabling diag/eval on non-local hosts is available only post 5.5.2 or 6.0 releases")
             return None, "Enabling diag/eval on non-local hosts is available only post 5.5.2 or 6.0 releases"
+
         output, error = self.execute_command(command)
         log.info(output)
         try:

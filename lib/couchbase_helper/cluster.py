@@ -168,13 +168,17 @@ class Cluster(object):
     def async_load_gen_docs(self, server, bucket, generator, kv_store=None, op_type=None, exp=0, flag=0, only_store_hash=True,
                             batch_size=1, pause_secs=1, timeout_secs=5, proxy_client=None, compression=True, collection=None):
 
+        print("-->Cluster.async_load_gen_docs...")
         if isinstance(generator, list):
+                print("loading list from LoadDocumentsGeneratorsTask...")
                 _task = LoadDocumentsGeneratorsTask(server, bucket, generator, kv_store, op_type, exp, flag,
                                                     only_store_hash, batch_size, compression=compression, collection=collection)
         # Load using java sdk client
         elif not generator.isGenerator():
+                print("loading from SDKLoadDocumentsTask...")
                 _task = SDKLoadDocumentsTask(server, bucket, generator, pause_secs, timeout_secs)
         else:
+                print("loading elements as [] from LoadDocumentsGeneratorsTask...")
                 _task = LoadDocumentsGeneratorsTask(server, bucket, [generator], kv_store, op_type, exp, flag,
                                                     only_store_hash, batch_size, compression=compression, collection=collection)
 

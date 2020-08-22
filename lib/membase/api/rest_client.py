@@ -1033,7 +1033,11 @@ class RestConnection(object):
             t1 *= 2
 
     def init_cluster(self, username='Administrator', password='password', port='8091'):
-        log.info("--> in init_cluster...{},{},{}".format(username,password,port))
+        self.skip_init_cluster = self.input.param("skip_init_cluster", False)
+        if self.skip_init_cluster:
+            log.info("--> skipping init_cluster...{},{},{}".format(username, password, port))
+            return False
+        log.info("--> Continue in init_cluster...{},{},{}".format(username,password,port))
         api = self.baseUrl + 'settings/web'
         params = urllib.parse.urlencode({'port': port,
                                    'username': username,
@@ -1133,6 +1137,12 @@ class RestConnection(object):
     def init_cluster_memoryQuota(self, username='Administrator',
                                  password='password',
                                  memoryQuota=256):
+        self.skip_init_cluster_quota = self.input.param("skip_init_cluster_memoryquota", False)
+        if self.skip_init_cluster_quota:
+            log.info("--> skipping init_cluster_memoryquota...{},{},{}".format(username,
+                                                                               password,
+                                                                               memoryQuota))
+            return False
         api = self.baseUrl + 'pools/default'
         params = urllib.parse.urlencode({'memoryQuota': memoryQuota})
         log.info('pools/default params : {0}'.format(params))
@@ -3720,9 +3730,9 @@ class RestConnection(object):
             if named_prepare and encoded_plan:
                 http = httplib2.Http()
                 if len(servers)>1:
-                    url = "%s://%s:%s/query/service" % (self.http_protocol,servers[1].ip, port)
+                    url = "%s://%s:%s/query/service" % (self.http_protocol,servers[1].ip, self.query_port)
                 else:
-                    url = "%s://%s:%s/query/service" % (self.http_protocol, self.ip, port)
+                    url = "%s://%s:%s/query/service" % (self.http_protocol, self.ip, self.query_port)
 
                 headers = self._create_headers_encoded_prepared()
                 body = {'prepared': named_prepare, 'encoded_plan':encoded_plan}
@@ -3760,7 +3770,7 @@ class RestConnection(object):
             params = urllib.parse.urlencode(params)
             if verbose:
                 log.info('query params : {0}'.format(params))
-            api = "%s://%s:%s/query?%s" % (self.http_protocol, self.ip, port, params)
+            api = "%s://%s:%s/query?%s" % (self.http_protocol, self.ip, self.query_port, params)
 
         if 'query_context' in query_params and query_params['query_context']:
             log.info(f"Running Query with query_context: {query_params['query_context']}")

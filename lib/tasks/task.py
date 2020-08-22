@@ -233,9 +233,10 @@ class NodeInitializeTask(Task):
             rest.set_max_parallel_replica_indexers(self.maxParallelReplicaIndexers)
 
         rest.init_cluster(username, password, self.port)
-        remote_shell = RemoteMachineShellConnection(self.server)
-        remote_shell.enable_diag_eval_on_non_local_hosts()
-        remote_shell.disconnect()
+        if not TestInputSingleton.input.param("skip_host_login", False):
+            remote_shell = RemoteMachineShellConnection(self.server)
+            remote_shell.enable_diag_eval_on_non_local_hosts()
+            remote_shell.disconnect()
         if rest.is_cluster_compat_mode_greater_than(4.0):
             if self.gsi_type == "plasma":
                 if not rest.is_cluster_compat_mode_greater_than(5.0):
@@ -873,7 +874,7 @@ class StatsWaitTask(Task):
     def _stringify_servers(self):
         return ''.join([repr(server.ip + ":" + str(server.port)) for server in self.servers])
 
-    def _get_connection(self, server, admin_user='cbadminbucket',admin_pass='password'):
+    def _get_connection(self, server, admin_user='Administrator',admin_pass='password'):
         if server not in self.conns:
             for i in range(3):
                 try:

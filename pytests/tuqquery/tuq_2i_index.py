@@ -1148,6 +1148,7 @@ class QueriesIndexTests(QueryTests):
                     self.assertFalse(self._is_index_in_list(bucket, idx), "Index is in list")
 
     def test_simple_array_index(self):
+        self.log.info("-->test_simple_array_index()...")
         self.fail_if_no_buckets()
         for bucket in self.buckets:
             created_indexes = []

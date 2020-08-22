@@ -97,6 +97,7 @@ class EventingBaseTest(QueryHelperTests):
         self.print_go_routine=self.input.param('print_go_routine', False)
 
     def tearDown(self):
+        log.info("Starting tearDown")
         # catch panics and print it in the test log
         self.check_eventing_logs_for_panic()
         rest = RestConnection(self.master)
@@ -114,6 +115,7 @@ class EventingBaseTest(QueryHelperTests):
             if stats_meta["curr_items"] != 0:
                 raise Exception("metdata bucket is not empty at the end of test")
         super(EventingBaseTest, self).tearDown()
+        log.info("Completed tearDown")
 
     def create_save_function_body(self, appname, appcode, description="Sample Description",
                                   checkpoint_interval=20000, cleanup_timers=False,
@@ -420,6 +422,10 @@ class EventingBaseTest(QueryHelperTests):
         return len(eventing_nodes_list)
 
     def check_if_eventing_consumers_are_cleaned_up(self):
+        if self.input.param("skip_host_login",False):
+            log.warning("-->Skipping check_if_eventing_consumers_are_cleaned_up as "
+                        "skip_host_login is set!")
+            return
         eventing_nodes = self.get_nodes_from_services_map(service_type="eventing", get_all_nodes=True)
         array_of_counts = []
         command = "ps -ef | grep eventing-consumer | grep -v grep | wc -l"
@@ -442,6 +448,9 @@ class EventingBaseTest(QueryHelperTests):
     """
 
     def check_eventing_logs_for_panic(self):
+        if self.input.param("skip_host_login", False):
+            log.warning("-->Skipping check_eventing_logs_for_panic due to skip_host_login!")
+            return
         self.generate_map_nodes_out_dist()
         panic_str = "panic"
         eventing_nodes = self.get_nodes_from_services_map(service_type="eventing", get_all_nodes=True)

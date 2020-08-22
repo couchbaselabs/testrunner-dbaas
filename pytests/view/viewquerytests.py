@@ -868,8 +868,8 @@ class ViewQueryTests(BaseTestCase):
             self.load(data_set, gen_load)
             for server in self.servers:
                 self.log.info("-->RebalanceHelper.wait_for_persistence({},{}".format(server, data_set.bucket))
-                # TBD on using SDK or REST instead of memcache direct
-                # RebalanceHelper.wait_for_persistence(server, data_set.bucket)
+                # TBD on using SDK or REST instead of memcached direct
+                #RebalanceHelper.wait_for_persistence(server, data_set.bucket)
                 self.sleep(30, "30 seconds wait to load...")
 
             self.log.info("-->_query_all_views...")
@@ -1971,6 +1971,7 @@ class ViewQueryTests(BaseTestCase):
         try:
             gens_load = []
             for generator_load in generators_load:
+                print(*generator_load, sep=', ')
                 gens_load.append(copy.deepcopy(generator_load))
             task = None
             bucket = data_set.bucket
@@ -1990,9 +1991,8 @@ class ViewQueryTests(BaseTestCase):
                 isinstance(threading.currentThread(), StoppableThread):
                 threading.currentThread().tasks.append(task)
             task.result()
-            # TBD on using SDK or REST instead of memcache
-            # direct
-            # RebalanceHelper.wait_for_persistence(data_set.server, bucket.name)
+            # TBD on using SDK or REST instead of memcached direct
+            #RebalanceHelper.wait_for_persistence(data_set.server, bucket.name)
             self.sleep(30, "30 seconds wait to load...")
             self.log.info("LOAD IS FINISHED")
             return gens_load
@@ -2528,12 +2528,14 @@ class EmployeeDataSet:
                 for month in join_mo:
                     for day in join_day:
                         prefix = str(uuid.uuid4())[:7]
-                        generators.append(DocumentGenerator(view.prefix + prefix,
+                        doc = DocumentGenerator(view.prefix + prefix,
                                                template,
                                                name, [year], [month], [day],
                                                email, [info["title"]],
                                                [info["type"]], [info["desc"]],
-                                               start=start, end=end))
+                                               start=start, end=end)
+                        generators.append(doc)
+
         return generators
 
 class SimpleDataSet:

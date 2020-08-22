@@ -3265,6 +3265,8 @@ class FTSBaseTest(unittest.TestCase):
             rest.set_bleve_max_result_window(bmrw_value)
 
     def __setup_for_test(self):
+
+        self.log.info("-->Start: Setup for the test")
         use_hostanames = self._input.param("use_hostnames", False)
         no_buckets = self._input.param("no_buckets", False)
         sdk_compression = self._input.param("sdk_compression", True)
@@ -3275,20 +3277,31 @@ class FTSBaseTest(unittest.TestCase):
                                             self.log,
                                             use_hostanames,
                                             sdk_compression=sdk_compression)
-        self.__cleanup_previous()
+
+        self.log.info("-->cleanup_previous")
+        if self.__is_cleanup_not_needed():
+            self.log.warning("CLEANUP WAS SKIPPED")
+        else:
+            self.__cleanup_previous()
         if self.compare_es:
             self.setup_es()
-        self._cb_cluster.init_cluster(self._cluster_services,
-                                      self._input.servers[1:])
+        if not self._input.param("skip_init_cluster", False):
+            self.log.info("-->Initializing the cluster")
+            self._cb_cluster.init_cluster(self._cluster_services,
+                                          self._input.servers[1:])
 
+        self.log.info("-->Enabling the diagnostics")
         self._enable_diag_eval_on_non_local_hosts()
         # Add built-in user
+        self.log.info("--> Creating user cbadminbucket/cbadminbucket")
         testuser = [{'id': 'cbadminbucket', 'name': 'cbadminbucket', 'password': 'password'}]
         RbacBase().create_user_source(testuser, 'builtin', master)
 
         # Assign user to role
+        self.log.info("--> Add user role cbadminbucket/cbadminbucket")
         role_list = [{'id': 'cbadminbucket', 'name': 'cbadminbucket', 'roles': 'admin'}]
         RbacBase().add_user_role(role_list, RestConnection(master), 'builtin')
+        self.log.info("--> Done: Add user role cbadminbucket/cbadminbucket")
 
         self._set_bleve_max_result_window()
 
@@ -3304,17 +3317,21 @@ class FTSBaseTest(unittest.TestCase):
 
         # for format {ip1: {"panic": 2}}
         self.__error_count_dict = {}
-        if len(self.__report_error_list) > 0:
+        if len(self.__report_error_list) > 0 and not self._input.param("skip_host_login", False):
             self.__initialize_error_count_dict()
             
         if self.ntonencrypt == 'enable':
             self.setup_nton_encryption()
+        self.log.info("-->End: Setup for the test")
 
     def _enable_diag_eval_on_non_local_hosts(self):
         """
         Enable diag/eval to be run on non-local hosts.
         :return: Nothing
         """
+        if self._input.param("skip_host_login", False):
+            self.log.warning("-->Skipping the host login and not setting the diag eval...")
+            return
         master = self._cb_cluster.get_master_node()
         remote = RemoteMachineShellConnection(master)
         output, error = remote.enable_diag_eval_on_non_local_hosts()

@@ -101,7 +101,7 @@ class SDKClient(object):
             print("Auth Error!")
             try:
                 cluster = Cluster(self.connection_string, bucket_class=CouchbaseBucket)
-                cluster.authenticate(PasswordAuthenticator(self.username, self.password))
+                cluster.authenticate(PasswordAuthenticator(self.username, TestInputSingleton.input.param("rest_password", "password")))
                 self.cb = cluster.open_bucket(self.bucket)
             except AuthError:
                 raise
@@ -304,7 +304,7 @@ class SDKClient(object):
 
     def upsert(self, key, value, cas=0, ttl=0, format=None, persist_to=0, replicate_to=0, collection=None):
         try:
-            print("-->upsert cb:{}".format(self.cb))
+            #print("-->upsert cb:{}".format(self.cb))
             return self.cb.upsert(key, value)
             #return self.cb.upsert(key, value, cas, ttl, format, persist_to, replicate_to)
         except CouchbaseError as e:

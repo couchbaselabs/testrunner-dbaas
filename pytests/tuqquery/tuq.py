@@ -1290,6 +1290,7 @@ class QueryTests(BaseTestCase):
         return json.loads(json_output_str)
 
     def run_cbq_query(self, query=None, min_output_size=10, server=None, query_params={}, is_prepared=False, encoded_plan=None, username=None, password=None, use_fts_query_param=None):
+        self.log.info("-->run_cqe_query()...")
         if query is None:
             query = self.query
         if server is None:
@@ -1302,6 +1303,9 @@ class QueryTests(BaseTestCase):
             username = rest.username
             password = rest.password
         cred_params['creds'].append({'user': username, 'pass': password})
+        self.log.info(
+            "-->user={},pwd={},is_prepared={},query={}".format(username, password, is_prepared,
+                                                               query))
         for bucket in self.buckets:
             if bucket.saslPassword:
                 cred_params['creds'].append({'user': 'local:%s' % bucket.name, 'pass': bucket.saslPassword})
