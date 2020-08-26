@@ -1024,7 +1024,8 @@ class QueryTests(BaseTestCase):
     def gen_docs(self, docs_per_day=1, type='default', values_type=None, name='tuq', start=0, end=0):
         json_generator = JsonGenerator()
         generators = []
-        self.log.info('Generating %s:%s data...' % (type, self.dataset))
+        self.log.info('Generating %s:%s data...docs_per_day:%s' % (type, self.dataset,
+                                                                   docs_per_day))
         if type == 'default':
             if self.array_indexing:
                 generators = json_generator.generate_docs_employee_array(docs_per_day, start)
@@ -1127,7 +1128,8 @@ class QueryTests(BaseTestCase):
             jira_tickets = ['[{"Number": 1, "project": "cb", "description": "test"},' + \
                             '{"Number": 2, "project": "mb"}]', ]
             generators.append(DocumentGenerator(name, template, names, jira_tickets, start=index + index, end=end))
-        self.log.info('Completed Generating %s:%s data...' % (type, self.dataset))
+        self.log.info('Completed Generating %s:%s data...docs_per_day=%s' % (type, self.dataset,
+                                                                             docs_per_day))
         return generators
 
     def buckets_docs_ready(self, bucket_docs_map):

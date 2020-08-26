@@ -1971,7 +1971,7 @@ class ViewQueryTests(BaseTestCase):
         try:
             gens_load = []
             for generator_load in generators_load:
-                print(*generator_load, sep=', ')
+                #print(*generator_load, sep=', ')
                 gens_load.append(copy.deepcopy(generator_load))
             task = None
             bucket = data_set.bucket

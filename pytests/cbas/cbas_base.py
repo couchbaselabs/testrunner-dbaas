@@ -102,8 +102,9 @@ class CBASBaseTest(BaseTestCase):
         node_info = self.rest.get_nodes_self()
         if node_info.memoryQuota and int(node_info.memoryQuota) > 0 :
             ram_available = node_info.memoryQuota
-            
-        self.bucket_size = ram_available - 1
+
+        #self.bucket_size = ram_available - 1
+        self.input.param("bucket_size", ram_available - 1)
         default_params=self._create_bucket_params(server=self.master, size=self.bucket_size,
                                                          replicas=self.num_replicas, bucket_type=self.bucket_type,
                                                          enable_replica_index=self.enable_replica_index,

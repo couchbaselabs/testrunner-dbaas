@@ -9,7 +9,7 @@ from couchbase import FMT_AUTO
 from memcached.helper.old_kvstore import ClientKeyValueStore
 from couchbase.bucket import Bucket as CouchbaseBucket
 from couchbase.cluster import Cluster, ClassicAuthenticator, PasswordAuthenticator
-from couchbase.exceptions import CouchbaseError, BucketNotFoundError, AuthError
+from couchbase.exceptions import CouchbaseError, BucketNotFoundError, AuthError, TemporaryFailError
 from mc_bin_client import MemcachedError
 from couchbase.n1ql import N1QLQuery, N1QLRequest
 from TestInput import TestInputServer, TestInputSingleton
@@ -311,6 +311,9 @@ class SDKClient(object):
             try:
                 print("-->upsert e={},cb:{}".format(e,self.cb))
                 #time.sleep(10)
+                return self.cb.upsert(key, value, cas, ttl, format, persist_to, replicate_to)
+            except TemporaryFailError as tfe:
+                print("-->temp failure. retrying upsert e={},cb:{}".format(e, self.cb))
                 return self.cb.upsert(key, value, cas, ttl, format, persist_to, replicate_to)
             except CouchbaseError as e:
                 raise
