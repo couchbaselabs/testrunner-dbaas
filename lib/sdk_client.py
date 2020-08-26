@@ -98,12 +98,12 @@ class SDKClient(object):
         except AuthError:
             # Try using default user created by the tests, if any, in case there is no user with bucket name in the
             # cluster.
-            print("Auth Error!")
             try:
                 cluster = Cluster(self.connection_string, bucket_class=CouchbaseBucket)
                 cluster.authenticate(PasswordAuthenticator(self.username, TestInputSingleton.input.param("rest_password", "password")))
                 self.cb = cluster.open_bucket(self.bucket)
             except AuthError:
+                print("Auth Error!")
                 raise
 
     def reconnect(self):

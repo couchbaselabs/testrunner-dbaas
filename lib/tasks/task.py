@@ -948,6 +948,7 @@ class GenericLoadingTask(Thread, Task):
         if CHECK_FLAG:
             self.client = VBucketAwareMemcached(RestConnection(server), bucket)
         else:
+            self.log.info("-->server={}".format(server))
             self.client = VBucketAwareMemcached(RestConnection(server), bucket, compression=compression)
         self.process_concurrency = THROUGHPUT_CONCURRENCY
         # task queue's for synchronization

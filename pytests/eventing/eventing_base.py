@@ -90,7 +90,7 @@ class EventingBaseTest(QueryHelperTests):
             self.hostname= "http://"+ip+":1080/"
             self.log.info("local ip address:{}".format(self.hostname))
             self.setup_curl()
-        self.skip_metabucket_check=False
+        self.skip_metabucket_check=self.input.param('skip_metabucket_check', False)
         self.cancel_timer=self.input.param('cancel_timer', False)
         self.is_expired=self.input.param('is_expired', False)
         self.print_app_log=self.input.param('print_app_log', False)
