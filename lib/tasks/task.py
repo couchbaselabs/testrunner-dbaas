@@ -42,6 +42,7 @@ from deepdiff import DeepDiff
 from functools import cmp_to_key
 
 try:
+    is_secure = TestInputSingleton.input.param("is_secure", False)
     CHECK_FLAG = False
     print("------------>Checking testrunner client: {}".format(testconstants.TESTRUNNER_CLIENT))
     if ((TestInputSingleton.input.param(testconstants.TESTRUNNER_CLIENT,
@@ -3239,7 +3240,8 @@ class MonitorViewQueryResultsTask(Task):
                     RestHelper(self.rest)._wait_for_indexer_ddoc(self.servers, self.design_doc_name)
                     if self.current_retry == 70:
                         self.query["stale"] = 'false'
-                    self.log.info("View result is still not expected (ddoc=%s, query=%s, server=%s). retry in 10 sec" % (
+                    self.log.info("[%s] View result is still not expected (ddoc=%s, query=%s, "
+                                  "server=%s). retry in 10 sec" % ( self.current_retry,
                                     self.design_doc_name, self.query, self.servers[0].ip))
                     self.state = EXECUTING
                     task_manager.schedule(self, 10)

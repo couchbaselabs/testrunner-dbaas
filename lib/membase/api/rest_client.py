@@ -263,7 +263,11 @@ class RestConnection(object):
             port = serverInfo.port
 
         if not port:
-            port = server_ports.rest_port
+            if TestInputSingleton.input.param("is_secure", False):
+                port = server_ports.ssl_rest_port
+            else:
+                port = server_ports.rest_port
+
         log.info("-->RestConnection {}, {}".format(port, serverInfo))
         if int(port) in range(9091, 9100):
             # return elastic search rest connection
@@ -279,7 +283,9 @@ class RestConnection(object):
         # serverInfo can be a json object/dictionary
         self.input = TestInputSingleton.input
         self.is_secure = self.input.param("is_secure", False)
+        self.http_protocol = "http"
         if not self.is_secure:
+            self.http_protocol = "http"
             self.rest_port = server_ports.rest_port
             self.index_port = server_ports.indexer_http_port
             self.fts_port = server_ports.fts_http_port
@@ -288,6 +294,7 @@ class RestConnection(object):
             self.capi_port = server_ports.capi_port
             self.cbas_port = server_ports.cbas_http_port
         else:
+            self.http_protocol = "https"
             self.rest_port = server_ports.ssl_rest_port
             self.index_port = server_ports.indexer_http_port
             self.fts_port = server_ports.fts_ssl_port
@@ -295,6 +302,7 @@ class RestConnection(object):
             self.eventing_port = server_ports.eventing_ssl_port
             self.capi_port = server_ports.ssl_capi_port
             self.cbas_port = server_ports.cbas_ssl_port
+
         if isinstance(serverInfo, dict):
             self.ip = serverInfo["ip"]
             log.info("-->self.ip={}".format(self.ip))
@@ -342,14 +350,12 @@ class RestConnection(object):
                 self.hostname = serverInfo.hostname
             if hasattr(serverInfo, 'services'):
                 self.services = serverInfo.services
-        self.http_protocol = "http"
 
         if self.input is not None:
             """ from watson, services param order and format:
                 new_services=fts-kv-index-n1ql """
             self.services_node_init = self.input.param("new_services", None)
             self.debug_logs = self.input.param("debug-logs", False)
-            self.http_protocol = self.input.param("http_protocol", "http")
             self.servers_map = self.input.param("servers_map", "")
         self.baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.port)
         self.fts_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip, self.fts_port)
@@ -359,24 +365,29 @@ class RestConnection(object):
         self.eventing_baseUrl = "{}://{}:{}/".format(self.http_protocol, self.ip,
                                                      self.eventing_port)
         if self.hostname:
-            self.baseUrl = "http://{0}:{1}/".format(self.hostname, self.port)
-            self.capiBaseUrl = "http://{0}:{1}/".format(self.hostname, self.capi_port)
-            self.query_baseUrl = "http://{0}:{1}/".format(self.hostname, self.query_port)
-            self.eventing_baseUrl = "http://{0}:{1}/".format(self.hostname, self.eventing_port)
+            self.baseUrl = "{0}://{1}:{2}/".format(self.http_protocol, self.hostname, self.port)
+            self.capiBaseUrl = "{0}://{1}:{2}/".format(self.http_protocol, self.hostname,
+                                                       self.capi_port)
+            self.query_baseUrl = "{0}://{1}:{2}/".format(self.http_protocol, self.hostname,
+                                                         self.query_port)
+            self.eventing_baseUrl = "{0}://{1}:{2}/".format(self.http_protocol, self.hostname,
+                                                            self.eventing_port)
 
+        #log.info("-->baseUrl={}, capiBaseUrl={}".format(self.baseUrl, self.capiBaseUrl))
         # Initialization of CBAS related params
-        self.cbas_base_url = "http://{0}:{1}".format(self.ip, self.cbas_port)
+        self.cbas_base_url = "{0}://{1}:{2}".format(self.http_protocol, self.ip, self.cbas_port)
         if hasattr(self.input, 'cbas'):
             if self.input.cbas:
                 self.cbas_node = self.input.cbas
                 self.cbas_port = self.cbas_port
                 if hasattr(self.cbas_node, 'port'):
                     self.cbas_port = self.cbas_node.port
-                self.cbas_base_url = "http://{0}:{1}".format(
+                self.cbas_base_url = "{0}://{1}:{2}".format( self.http_protocol,
                     self.cbas_node.ip,
                     self.cbas_port)
             elif "cbas" in self.services:
-                self.cbas_base_url = "http://{0}:{1}".format(self.ip, self.cbas_port)
+                self.cbas_base_url = "{0}://{1}:{2}".format(self.http_protocol, self.ip,
+                                                            self.cbas_port)
 
         # for Node is unknown to this cluster error
         if self.input.param("is_admin", True):
@@ -399,6 +410,7 @@ class RestConnection(object):
                 continue
             else:
                 break
+        #log.info("-->2. baseUrl={}, capiBaseUrl={}".format(self.baseUrl, self.capiBaseUrl))
         # determine the real couchApiBase for cluster_run
         # couchApiBase appeared in version 2.*
         try:
@@ -419,10 +431,20 @@ class RestConnection(object):
                         else:
                             # TBD: fix for matched node
                             self.capiBaseUrl = http_res["nodes"][0]["couchApiBase"]
+                        #TBD: Check why the reponse doesn't preserve the protocol and port
+                        if self.is_secure:
+                            self.capiBaseUrl = self.capiBaseUrl.replace('http',self.http_protocol)
+                            self.capiBaseUrl = self.capiBaseUrl.replace(str(server_ports.capi_port),
+                                                                      str(self.capi_port))
+                        log.info("--> baseUrl={}, capiBaseUrl={}".format(self.baseUrl,
+                                                                           self.capiBaseUrl))
                         return
                 raise ServerUnavailableException("couchApiBase doesn't exist: %s " % http_res)
         except Exception as e:
             log.warning("server might not be running? {}".format(e))
+        log.info("--> baseUrl={}, capiBaseUrl={}".format(self.baseUrl, self.capiBaseUrl))
+
+
     def sasl_streaming_rq(self, bucket, timeout=120):
         api = self.baseUrl + 'pools/default/bucketsStreaming/{0}'.format(bucket)
         if isinstance(bucket, Bucket):
@@ -521,7 +543,7 @@ class RestConnection(object):
         return status, content
 
     def active_tasks(self):
-        api = 'http://{0}:{1}/pools/default/tasks'.format(self.ip, self.port)
+        api = '{0}://{1}:{2}/pools/default/tasks'.format(self.http_protocol, self.ip, self.port)
         try:
             status, content, header = self._http_request(api, 'GET',
                                                          headers=self._create_capi_headers())
@@ -1207,7 +1229,8 @@ class RestConnection(object):
 
     def cleanup_indexer_rebalance(self, server):
         if server:
-            api = "http://{0}:{1}/".format(server.ip, self.index_port) + 'cleanupRebalance'
+            api = "{0}://{1}:{2}/".format(self.http_protocol, server.ip, self.index_port) + \
+                  'cleanupRebalance'
         else:
             api = self.baseUrl + 'cleanupRebalance'
         status, content, _ = self._http_request(api, 'GET')
@@ -1219,7 +1242,8 @@ class RestConnection(object):
 
     def list_indexer_rebalance_tokens(self, server):
         if server:
-            api = "http://{0}:{1}/".format(server.ip, self.index_port) + 'listRebalanceTokens'
+            api = "{0}://{1}:{2}/".format(self.http_protocol, server.ip, self.index_port) + \
+                  'listRebalanceTokens'
         else:
             api = self.baseUrl + 'listRebalanceTokens'
         print(api)
@@ -1489,12 +1513,14 @@ class RestConnection(object):
             else:
                 raise Exception("There is not zone with name: %s in cluster" % zone_name)
 
-        params = urllib.parse.urlencode({'hostname': "http://{0}:{1}".format(remoteIp, port),
+        params = urllib.parse.urlencode({'hostname': "{0}://{1}:{2}".format(self.http_protocol,
+                                                                             remoteIp, port),
                                    'user': user,
                                    'password': password})
         if services != None:
             services = ','.join(services)
-            params = urllib.parse.urlencode({'hostname': "http://{0}:{1}".format(remoteIp, port),
+            params = urllib.parse.urlencode({'hostname': "{0}://{1}:{2}".format(
+                self.http_protocol, remoteIp, port),
                                    'user': user,
                                    'password': password,
                                    'services': services})
@@ -3660,7 +3686,7 @@ class RestConnection(object):
     def set_completed_requests_collection_duration(self, server, min_time):
         http = httplib2.Http()
         n1ql_port = self.query_port
-        api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
+        api = "%s://%s:%s/" % (self.http_protocol, server.ip, n1ql_port) + "admin/settings"
         body = {"completed-threshold": min_time}
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "POST", headers=headers, body=json.dumps(body))
@@ -3669,7 +3695,7 @@ class RestConnection(object):
     def set_completed_requests_max_entries(self, server, no_entries):
         http = httplib2.Http()
         n1ql_port = self.query_port
-        api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
+        api = "%s://%s:%s/" % (self.http_protocol, server.ip, n1ql_port) + "admin/settings"
         body = {"completed-limit": no_entries}
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "POST", headers=headers, body=json.dumps(body))
@@ -3678,7 +3704,7 @@ class RestConnection(object):
     def set_profiling(self, server, setting):
         http = httplib2.Http()
         n1ql_port = self.query_port
-        api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
+        api = "%s://%s:%s/" % (self.http_protocol, server.ip, n1ql_port) + "admin/settings"
         body = {"profile": setting}
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "POST", headers=headers, body=json.dumps(body))
@@ -3687,7 +3713,7 @@ class RestConnection(object):
     def set_profiling_controls(self, server, setting):
         http = httplib2.Http()
         n1ql_port = self.query_port
-        api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
+        api = "%s://%s:%s/" % (self.http_protocol, server.ip, n1ql_port) + "admin/settings"
         body = {"controls": setting}
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "POST", headers=headers, body=json.dumps(body))
@@ -3696,7 +3722,7 @@ class RestConnection(object):
     def get_query_admin_settings(self, server):
         http = httplib2.Http()
         n1ql_port = self.query_port
-        api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/settings"
+        api = "%s://%s:%s/" % (self.http_protocol, server.ip, n1ql_port) + "admin/settings"
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "GET", headers=headers)
         result = json.loads(content)
@@ -3705,7 +3731,7 @@ class RestConnection(object):
     def get_query_vitals(self, server):
         http = httplib2.Http()
         n1ql_port = self.query_port
-        api = "http://%s:%s/" % (server.ip, n1ql_port) + "admin/vitals"
+        api = "%s://%s:%s/" % (self.http_protocol, server.ip, n1ql_port) + "admin/vitals"
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "GET", headers=headers)
         return response, content
@@ -3713,7 +3739,8 @@ class RestConnection(object):
 
     def create_whitelist(self, server, whitelist):
         http = httplib2.Http()
-        api = "http://%s:%s/" % (server.ip, server.port) + "settings/querySettings/curlWhitelist"
+        api = "%s://%s:%s/" % (self.http_protocol, server.ip, server.port) + \
+              "settings/querySettings/curlWhitelist"
         headers = self._create_headers_with_auth('Administrator', 'password')
         response, content = http.request(api, "POST", headers=headers, body=json.dumps(whitelist))
         return response, content
@@ -3792,9 +3819,9 @@ class RestConnection(object):
             if named_prepare and encoded_plan:
                 http = httplib2.Http()
                 if len(servers)>1:
-                    url = "http://%s:%s/query/service" % (servers[1].ip, port)
+                    url = "%s://%s:%s/query/service" % (self.http_protocol, servers[1].ip, port)
                 else:
-                    url = "http://%s:%s/query/service" % (self.ip, port)
+                    url = "%s://%s:%s/query/service" % (self.http_protocol, self.ip, port)
 
                 headers = {'Content-type': 'application/json'}
                 body = {'prepared': named_prepare, 'encoded_plan':encoded_plan}
@@ -3834,7 +3861,7 @@ class RestConnection(object):
 
     def query_tool_stats(self):
         log.info('query n1ql stats')
-        api = "http://%s:%s/admin/stats" % (self.ip, self.query_port)
+        api = "%s://%s:%s/admin/stats" % (self.http_protocol, self.ip, self.query_port)
         status, content, header = self._http_request(api, 'GET')
         log.info(content)
         try:
@@ -3844,7 +3871,7 @@ class RestConnection(object):
 
     def index_tool_stats(self):
         log.info('index n1ql stats')
-        api = "http://%s:%s/indexStatus" % (self.ip, self.port)
+        api = "%s://%s:%s/indexStatus" % (self.http_protocol, self.ip, self.port)
         params = ""
         status, content, header = self._http_request(api, 'GET', params)
         log.info(content)
