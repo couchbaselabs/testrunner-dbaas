@@ -261,14 +261,12 @@ class RestConnection(object):
                 port = serverInfo['port']
         else:
             port = serverInfo.port
-
         if not port:
-            if TestInputSingleton.input.param("is_secure", False):
-                port = server_ports.ssl_rest_port
-            else:
-                port = server_ports.rest_port
+            port = server_ports.rest_port
+        if TestInputSingleton.input.param("is_secure", False):
+            port = server_ports.ssl_rest_port
 
-        log.info("-->RestConnection {}, {}".format(port, serverInfo))
+        #log.info("-->RestConnection {}, {}".format(port, serverInfo))
         if int(port) in range(9091, 9100):
             # return elastic search rest connection
             from membase.api.esrest_client import EsRestConnection
@@ -1054,7 +1052,9 @@ class RestConnection(object):
             count += 1
             t1 *= 2
 
-    def init_cluster(self, username='Administrator', password='password', port='8091'):
+    def init_cluster(self, username='Administrator', password='password', port=None):
+        if not port:
+            port = self.rest_port
         self.skip_init_cluster = self.input.param("skip_init_cluster", False)
         if self.skip_init_cluster:
             log.info("--> skipping init_cluster...{},{},{}".format(username, password, port))
@@ -1490,9 +1490,11 @@ class RestConnection(object):
     # can't add the node to itself ( TODO )
     # server already added
     # returns otpNode
-    def add_node(self, user='', password='', remoteIp='', port='8091', zone_name='', services=None):
+    def add_node(self, user='', password='', remoteIp='', port=None, zone_name='', services=None):
         otpNode = None
 
+        if not port:
+            port = self.rest_port
         # if ip format is ipv6 and enclosing brackets are not found,
         # enclose self.ip and remoteIp
         if self.ip.count(':') and self.ip[0] != '[':
@@ -1560,8 +1562,11 @@ class RestConnection(object):
     # can't add the node to itself ( TODO )
     # server already added
     # returns otpNode
-    def do_join_cluster(self, user='', password='', remoteIp='', port='8091', zone_name='', services=None):
+    def do_join_cluster(self, user='', password='', remoteIp='', port=None, zone_name='',
+                        services=None):
         otpNode = None
+        if not port:
+            port = self.rest_port
         log.info('adding remote node @{0}:{1} to this cluster @{2}:{3}'\
                           .format(remoteIp, port, self.ip, self.port))
         api = self.baseUrl + '/node/controller/doJoinCluster'

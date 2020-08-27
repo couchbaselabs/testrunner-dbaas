@@ -7,6 +7,13 @@ import sys
 import re
 
 class SimpleRequests(BaseTestCase):
+
+    def suite_setUp(self):
+        pass
+
+    def suite_tearDown(self):
+        pass
+
     def setUp(self):
         super(SimpleRequests, self).setUp()
         if not self.skip_host_login:

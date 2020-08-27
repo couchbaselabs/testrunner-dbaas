@@ -12,6 +12,7 @@ from testconstants import FTS_QUOTA, CBAS_QUOTA, INDEX_QUOTA, MIN_KV_QUOTA
 from threading import Thread
 import threading
 from security.rbac_base import RbacBase
+import server_ports
 
 
 class CBASBaseTest(BaseTestCase):
@@ -68,6 +69,10 @@ class CBASBaseTest(BaseTestCase):
         if self.index_fields:
             self.index_fields = self.index_fields.split("-")
         self.otpNodes = []
+        self.is_secure = self.input.param("is_secure", False)
+        if self.is_secure:
+            self.rest_port = server_ports.ssl_rest_port
+            self.master.port = self.rest_port
 
         self.rest = RestConnection(self.master)
         
@@ -125,7 +130,7 @@ class CBASBaseTest(BaseTestCase):
                     self.otpNodes.append(self.rest.add_node(user=server.rest_username,
                                                password=server.rest_password,
                                                remoteIp=server.ip,
-                                               port=8091,
+                                               port=self.rest_port,
                                                services=server.services.split(",")))
     
             self.rebalance()
@@ -155,7 +160,7 @@ class CBASBaseTest(BaseTestCase):
         otpnode = self.rest.add_node(user=node.rest_username,
                                password=node.rest_password,
                                remoteIp=node.ip,
-                               port=8091,
+                               port=self.rest_port,
                                services=services
                                )
         if rebalance:

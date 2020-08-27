@@ -17,6 +17,12 @@ from lib.membase.api.rest_client import RestConnection
 
 class StableTopFTS(FTSBaseTest):
 
+    def suite_setUp(self):
+        pass
+
+    def suite_tearDown(self):
+        pass
+
     def setUp(self):
         super(StableTopFTS, self).setUp()
 
