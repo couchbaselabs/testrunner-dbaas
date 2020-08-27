@@ -47,6 +47,13 @@ class StoppableThread(Thread):
         return self._stopper.isSet()
 
 class ViewQueryTests(BaseTestCase):
+
+    def suite_setUp(self):
+        pass
+
+    def suite_tearDown(self):
+        pass
+
     def setUp(self):
         try:
             super(ViewQueryTests, self).setUp()
@@ -2197,11 +2204,17 @@ class QueryView:
                             threading.currentThread().tasks[0] = task
                         debug_info = task.result()
                         msg += "DEBUG INFO: %s" % debug_info["errors"]
-                    self.results.addFailure(tc, (Exception, msg, sys.exc_info()[2]))
+                    try:
+                        self.results.addFailure(tc, (Exception, msg, sys.exc_info()[2]))
+                    except AttributeError:
+                        self.results.addFailure(tc, (Exception, msg, None))
                     tc.thread_crashed.set()
         except Exception as ex:
             self.log.error("Error {0} appeared during query run".format(ex))
-            self.results.addError(tc, (Exception, str(ex), sys.exc_info()[2]))
+            try:
+                self.results.addFailure(tc, (Exception, msg, sys.exc_info()[2]))
+            except AttributeError:
+                self.results.addFailure(tc, (Exception, msg, None))
             tc.thread_crashed.set()
             if task:
                 if 'stop' in dir(threading.currentThread()) and\

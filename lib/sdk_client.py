@@ -304,7 +304,8 @@ class SDKClient(object):
 
     def upsert(self, key, value, cas=0, ttl=0, format=None, persist_to=0, replicate_to=0, collection=None):
         try:
-            #print("-->upsert cb:{}".format(self.cb))
+            if type(value) == str:
+                value = json.loads(value)
             return self.cb.upsert(key, value)
             #return self.cb.upsert(key, value, cas, ttl, format, persist_to, replicate_to)
         except CouchbaseError as e:
