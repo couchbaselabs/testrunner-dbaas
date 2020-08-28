@@ -44,11 +44,12 @@ class EventingBaseTest(QueryHelperTests):
         if self.restServer:
             self.rest = RestConnection(self.restServer)
             self.rest.set_indexer_storage_mode()
-            self.log.info(
-                "Setting the min possible memory quota so that adding mode nodes to the cluster wouldn't be a problem.")
-            self.rest.set_service_memoryQuota(service='memoryQuota', memoryQuota=330)
-            self.rest.set_service_memoryQuota(service='indexMemoryQuota', memoryQuota=INDEX_QUOTA)
-            self.rest.set_service_memoryQuota(service='eventingMemoryQuota', memoryQuota=EVENTING_QUOTA)
+            if not self.input.param("skip_set_memoryquota", False):
+                self.log.info(
+                    "Setting the min possible memory quota so that adding mode nodes to the cluster wouldn't be a problem.")
+                self.rest.set_service_memoryQuota(service='memoryQuota', memoryQuota=330)
+                self.rest.set_service_memoryQuota(service='indexMemoryQuota', memoryQuota=INDEX_QUOTA)
+                self.rest.set_service_memoryQuota(service='eventingMemoryQuota', memoryQuota=EVENTING_QUOTA)
         self.src_bucket_name = self.input.param('src_bucket_name', 'src_bucket')
         self.eventing_log_level = self.input.param('eventing_log_level', 'INFO')
         self.dst_bucket_name = self.input.param('dst_bucket_name', 'dst_bucket')
