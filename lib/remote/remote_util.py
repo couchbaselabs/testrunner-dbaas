@@ -255,7 +255,11 @@ class RemoteMachineShellConnection(KeepRefs):
         self.remote = (self.ip != "localhost" and self.ip != "127.0.0.1")
         self.port = serverInfo.port
         self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
+        self.is_ssh_allowed = False
+        if self.input.param("skip_host_login", False):
+            log.warning("-->Skipping host login and there by no RemoteMachineShellConnection!")
+            self.is_ssh_allowed=False
+            return
         self.ssh_connect_with_retries(serverInfo.ip, serverInfo.ssh_username, serverInfo.ssh_password,
                                       serverInfo.ssh_key, exit_on_failure)
 

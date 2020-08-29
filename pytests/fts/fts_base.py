@@ -39,7 +39,7 @@ from security.ntonencryptionBase import ntonencryptionBase
 from lib.ep_mc_bin_client import MemcachedClient
 from lib.mc_bin_client import MemcachedClient as MC_MemcachedClient
 from security.SecretsMasterBase import SecretsMasterBase
-
+import server_ports
 
 class RenameNodeException(FTSException):
     """Exception thrown when converting ip to hostname failed
@@ -1702,9 +1702,17 @@ class CouchbaseCluster:
             RestConnection(self.__master_node).set_fts_ram_quota(fts_quota)
 
     def get_node(self, ip, port):
+        if len(self.__nodes) == 1:
+            return self.__nodes[0]
+        
         for node in self.__nodes:
+            self.__log.info("ip={}==node.ip={},port={}==node.port={},".format(ip,node.ip,port,
+                                                                           node.port))
             if ip == node.ip and port == node.port:
+                self.__log.info("-->matched service: {}".format(node))
                 return node
+            else:
+                self.__log.info("-->un matched service: {}".format(node))
 
     def get_logger(self):
         return self.__log
@@ -1721,13 +1729,18 @@ class CouchbaseCluster:
         self.__n1ql_nodes = []
         self.__non_fts_nodes = []
         service_map = RestConnection(self.__master_node).get_nodes_services()
+        self.__log.info("-->service_map={}".format(service_map))
         for node_ip, services in list(service_map.items()):
             if self.is_cluster_run():
                 # if cluster-run and ip not 127.0.0.1
                 ip = "127.0.0.1"
             else:
                 ip = node_ip.rsplit(':', 1)[0]
-            node = self.get_node(ip, node_ip.rsplit(':', 1)[1])
+            if TestInputSingleton.input.param("is_secure", False):
+                node_port = server_ports.ssl_rest_port
+            else:
+                node_port = node_ip.rsplit(':', 1)[1]
+            node = self.get_node(ip, node_port)
             if node:
                 if "fts" in services:
                     self.__fts_nodes.append(node)
@@ -3113,6 +3126,7 @@ class FTSBaseTest(unittest.TestCase):
         self.field_alias = self._input.param("field_alias", None)
         self.enable_secrets = self._input.param("enable_secrets", False)
         self.secret_password = self._input.param("secret_password", 'p@ssw0rd')
+        self._bucket_size = self._input.param("bucket_size")
 
         self.log.info(
             "==== FTSbasetests setup is started for test #{0} {1} ===="
@@ -3531,10 +3545,11 @@ class FTSBaseTest(unittest.TestCase):
         num_buckets = self.__num_sasl_buckets + \
                       self.__num_stand_buckets + int(self._create_default_bucket)
 
-        total_quota = self._cb_cluster.get_mem_quota()
-        bucket_size = self.__calculate_bucket_size(
-            total_quota,
-            num_buckets)
+        if self._bucket_size:
+            bucket_size = self._bucket_size
+        else:
+            total_quota = self._cb_cluster.get_mem_quota()
+            bucket_size = self.__calculate_bucket_size( total_quota, num_buckets)
 
         bucket_type = TestInputSingleton.input.param("bucket_type", "membase")
         maxttl = TestInputSingleton.input.param("maxttl", None)
@@ -3756,6 +3771,9 @@ class FTSBaseTest(unittest.TestCase):
         fts_log = NodeHelper.get_log_dir(self._input.servers[0]) + '/fts.log*'
         for node in self._input.servers:
             shell = RemoteMachineShellConnection(node)
+            if not shell.is_ssh_allowed:
+                self.log.warning("No check for error count as ssh to the node is available!")
+                return
             for error in self.__report_error_list:
                 count, err = shell.execute_command(
                     "zgrep \"{0}\" {1} | wc -l".format(error, fts_log))
@@ -4595,8 +4613,11 @@ class FTSBaseTest(unittest.TestCase):
                 items = self._num_items // 2
             while True:
                 try:
-                    doc_count = self._cb_cluster.get_doc_count_in_bucket(
-                        self._cb_cluster.get_buckets()[0])
+                    buckets = self._cb_cluster.get_buckets()
+                    if len(buckets) == 0:
+                        self.log.error("No buckets found!")
+                        break
+                    doc_count = self._cb_cluster.get_doc_count_in_bucket(buckets[0])
                     break
                 except KeyError:
                     self.log.info("bucket stats not ready yet...")
