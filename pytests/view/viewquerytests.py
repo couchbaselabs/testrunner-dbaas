@@ -2229,7 +2229,8 @@ class QueryView:
                 tc.thread_stopped.set()
 
 class EmployeeDataSet:
-    def __init__(self, server, cluster, docs_per_day=200, bucket="default", ddoc_options=None):
+    def __init__(self, server, cluster, docs_per_day=200, bucket=self.default_bucket_name,
+                 ddoc_options=None):
         self.docs_per_day = docs_per_day
         self.years = 1
         self.months = 12

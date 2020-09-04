@@ -1384,6 +1384,7 @@ class QueryTests(BaseTestCase):
                                          is_prepared=is_prepared, named_prepare=self.named_prepare,
                                          encoded_plan=encoded_plan, servers=self.servers)
         else:
+            self.log.info("-->Using CLI cbq")
             if self.version == "git_repo":
                 output = self.shell.execute_commands_inside(
                     "$GOPATH/src/github.com/couchbase/query/" + \

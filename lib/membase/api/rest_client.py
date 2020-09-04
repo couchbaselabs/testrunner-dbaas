@@ -98,7 +98,7 @@ class RestHelper(object):
         progress = 0
         previous_progress = 0
         retry = 0
-        while progress is not -1 and progress < percentage and retry < retry_count:
+        while progress != -1 and progress < percentage and retry < retry_count:
             # -1 is error , -100 means could not retrieve progress
             progress = self.rest._rebalance_progress()
             if progress == -100:
@@ -425,15 +425,18 @@ class RestConnection(object):
                         http_res, success = self.init_http_request(self.baseUrl + api_path)
                     else:
                         if self.input.param("is_admin", True):
-                            self.capiBaseUrl = http_res["couchApiBase"]
+                            if self.is_secure:
+                                self.capiBaseUrl = http_res["couchApiBaseHTTPS"]
+                            else:
+                                self.capiBaseUrl = http_res["couchApiBase"]
                         else:
                             # TBD: fix for matched node
-                            self.capiBaseUrl = http_res["nodes"][0]["couchApiBase"]
+                            if self.is_secure:
+                                self.capiBaseUrl = http_res["nodes"][0]["couchApiBaseHTTPS"]
+                            else:
+                                self.capiBaseUrl = http_res["nodes"][0]["couchApiBase"]
                         #TBD: Check why the reponse doesn't preserve the protocol and port
-                        if self.is_secure:
-                            self.capiBaseUrl = self.capiBaseUrl.replace('http',self.http_protocol)
-                            self.capiBaseUrl = self.capiBaseUrl.replace(str(server_ports.capi_port),
-                                                                      str(self.capi_port))
+
                         log.info("--> baseUrl={}, capiBaseUrl={}".format(self.baseUrl,
                                                                            self.capiBaseUrl))
                         return
@@ -997,9 +1000,13 @@ class RestConnection(object):
                         ip_host = server_ip_host.split(":")
                         mapped_ip = ip_host[0]
                         mapped_host = ip_host[1]
-                        if mapped_ip in api:
+                        if "://"+mapped_ip in api:
                             log.info("--> replacing ip with hostname ")
                             api = api.replace(mapped_ip, mapped_host)
+                            if self.is_secure:
+                                if ":"+str(server_ports.rest_port) in api:
+                                    api = api.replace(":"+str(server_ports.rest_port),
+                                                  ":"+str(server_ports.ssl_rest_port))
 
                 log.info("api:{}".format(api))
                 ssl_no_verify=TestInputSingleton.input.param("disable_ssl_certificate_validation",
