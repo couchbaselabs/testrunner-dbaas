@@ -65,6 +65,7 @@ class ViewQueryTests(BaseTestCase):
             self.docs_per_day = self.input.param('docs-per-day', 200)
             self.retries = self.input.param('retries', 100)
             self.timeout = self.input.param('timeout', None)
+            self.default_bucket_name = self.input.param('default_bucket_name', "default")
             self.error = None
             self.master = self.servers[0]
             self.thread_crashed = Event()
@@ -2229,8 +2230,11 @@ class QueryView:
                 tc.thread_stopped.set()
 
 class EmployeeDataSet:
-    def __init__(self, server, cluster, docs_per_day=200, bucket=self.default_bucket_name,
+    def __init__(self, server, cluster, docs_per_day=200, bucket='default',
                  ddoc_options=None):
+        self.default_bucket_name = TestInputSingleton.input.param('default_bucket_name', "default")
+        if bucket == 'default' and self.default_bucket_name != "default":
+            bucket = self.default_bucket_name
         self.docs_per_day = docs_per_day
         self.years = 1
         self.months = 12
